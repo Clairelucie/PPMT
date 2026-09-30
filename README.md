@@ -66,8 +66,8 @@ PPMT/
 
 | Fichier | Rôle en V1 | En V2 |
 |---|---|---|
-| `sources/*.py` | scripts de collecte, nettoyage et base V1 | remplacés par `src/collect.py`, `src/prepare.py`, `src/store.py` |
-| `notebook/bernard_nettoyage.py` | nettoyage Adzuna V1 | règles reprises dans `src/prepare.py` |
+| `sources/*.py` (autres scripts) | collecte, nettoyage France Travail et base V1 | remplacés par `src/collect.py`, `src/prepare.py`, `src/store.py` |
+| `sources/clean_adzuna.py` | nettoyage Adzuna V1 (partie de Bernard) | règles reprises dans `src/prepare.py` |
 | `data/database.db` | base V1 (non versionnée) | remplacée par `data/ppmt.db` |
 | `data/itm_consolide.csv` | indicateurs V1 (pandas) | remplacé par la table `indicateurs_tension` (SQL) |
 | `data/predictions_itm.csv`, `webapp/models/modele_itm.pkl`, `scaler_itm.pkl` | modèle V1 (fuite de données) | remplacés par `data/predictions_tension.csv` et `modele_tension.pkl` (XGBoost) |
