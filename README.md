@@ -55,12 +55,24 @@ PPMT/
 ├── tests/test_pipeline.py  57 tests (collecte simulée, règles, base, API)
 ├── run_pipeline.py       orchestrateur
 ├── notebook/ml_tests.py  expérimentation ML (hors BC01)
-├── webapp/app.py         dashboard Streamlit
+├── webapp/app.py         dashboard Streamlit — lit uniquement data/ppmt.db et les sorties du modèle V2
 ├── sources/              scripts de la V1 (historique)
 ├── data/ref/             departements_idf.geojson (contours) · communes_idf.csv (1 276 communes) — versionnés
 ├── docs/                 dictionnaire.md · rgpd.md · soutenance/
 └── Dockerfile            image de l'API
 ```
+
+### Fichiers V1 conservés pour l’historique (non utilisés par la V2)
+
+| Fichier | Rôle en V1 | En V2 |
+|---|---|---|
+| `sources/*.py` | scripts de collecte, nettoyage et base V1 | remplacés par `src/collect.py`, `src/prepare.py`, `src/store.py` |
+| `notebook/bernard_nettoyage.py` | nettoyage Adzuna V1 | règles reprises dans `src/prepare.py` |
+| `data/database.db` | base V1 (non versionnée) | remplacée par `data/ppmt.db` |
+| `data/itm_consolide.csv` | indicateurs V1 (pandas) | remplacé par la table `indicateurs_tension` (SQL) |
+| `data/predictions_itm.csv`, `webapp/models/modele_itm.pkl`, `scaler_itm.pkl` | modèle V1 (fuite de données) | remplacés par `data/predictions_tension.csv` et `modele_tension.pkl` (XGBoost) |
+
+`data/offres_idf_clean.csv` et `data/offres_ft_idf_clean.csv` restent utilisés : ce sont les entrées de `src/prepare.py` quand les fichiers bruts du jour (`data/offres_idf.csv`, `data/offres_ft_idf.csv`) sont absents.
 
 ## 4 bis. Préparation — méthodes retenues
 
