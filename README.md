@@ -31,7 +31,7 @@ src/collect.py         départements · RGPD      agrégation SQL (ITM)     → 
 ## 3. Installation et lancement
 
 ```bash
-git clone https://github.com/maninconseil-commits/PPMT.git && cd PPMT
+git clone https://github.com/Clairelucie/PPMT.git && cd PPMT
 pip install -r requirements.txt
 cp .env.example .env            # renseigner les clés France Travail et Adzuna
 
