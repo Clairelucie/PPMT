@@ -58,7 +58,7 @@ PPMT/
 ├── webapp/app.py         dashboard Streamlit — lit uniquement data/ppmt.db et les sorties du modèle V2
 ├── sources/              scripts de la V1 (historique)
 ├── data/ref/             departements_idf.geojson (contours) · communes_idf.csv (1 276 communes) — versionnés
-├── docs/                 dictionnaire.md · rgpd.md · soutenance/
+├── docs/                 dictionnaire.md · rgpd.md · soutenance/ (dossier, présentation et fiche V1→V2 ; v1/ = archives)
 └── Dockerfile            image de l'API
 ```
 
