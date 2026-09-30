@@ -2,7 +2,7 @@
 # 1. SÉCURITÉ DATA (CONSIGNE SIMPLON)
 # ==========================================
 # On bloque tout le dossier data pour ne pas uploader les fichiers lourds
-data/
+data/*
 
 # On bloque la base de données locale pour qu'elle ne soit pas écrasée sur le Git
 *.db
@@ -36,3 +36,9 @@ Thumbs.db# Garder les fichiers clean pour Streamlit Cloud
 !data/offres_ft_idf_clean.csv
 !data/itm_consolide.csv
 !data/predictions_itm.csv
+!data/ref/
+
+# Journaux et sorties intermédiaires du pipeline
+logs/
+data/raw/
+data/processed/

@@ -58,7 +58,7 @@ Equipe : Bernard | Claire
 | salaire_moyen_ft | float | Salaire moyen FT pour ce metier | 12 000 - 130 000 | Calcule depuis offres FT |
 | salaire_moyen_adzuna | float | Salaire moyen Adzuna pour ce metier | 0 - 58 679 | 0 si pas d'offres Adzuna |
 | salaire_moyen | float | Salaire moyen toutes sources | 12 000 - 130 000 | Moyenne ponderee |
-| indice_tension | float | Nb offres pour 100 candidats (ITM) | 4.1 - 2885.7 | Source France Travail officielle |
+| indice_tension | float | Indice de tension (ITM) = nb_offres_total / moyenne des métiers × 100 (100 = métier moyen) | 4 - 2 800 | Calculé (pression de la demande employeurs, côté offres) |
 | statut | str | Classification du metier | SATURE / EQUILIBRE / EN TENSION / TRES EN TENSION | Seuils 50/100/150 |
 | source_calcul | str | Source du calcul ITM | France Travail | |
 | date_calcul | date | Date du calcul | YYYY-MM-DD | |

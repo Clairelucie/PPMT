@@ -60,6 +60,25 @@ def load_ft():
         return pd.DataFrame()
 
 @st.cache_data
+def load_geojson():
+    """Contours des 8 departements (fichier de reference collecte par src/collect.py)."""
+    import json
+    try:
+        with open("data/ref/departements_idf.geojson", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def code_dept_depuis_libelle(lib):
+    """'Hauts-de-Seine (92)' -> '92' ; 'Paris' -> '75' ; libelle sans departement -> None."""
+    import re
+    lib = str(lib)
+    m = re.search(r"\((75|77|78|91|92|93|94|95)\)", lib)
+    if m:
+        return m.group(1)
+    return "75" if lib.strip().lower() == "paris" else None
+
+@st.cache_data
 def load_predictions():
     try:
         return pd.read_csv("data/predictions_itm.csv")
@@ -185,7 +204,7 @@ with st.sidebar:
     <b>Sources</b><br>Adzuna API · France Travail API<br><br>
     <b>Periode collecte</b><br>2025 - mai 2026<br><br>
     <b>Perimetre</b><br>Ile-de-France (8 depts)<br><br>
-    <b>Modele ML</b><br>Random Forest · R²=0.9952
+    <b>Modele ML (experimental)</b><br>XGBoost · AUC 0,84
     </div>
     """, unsafe_allow_html=True)
 
@@ -210,7 +229,7 @@ st.markdown("""
 <h2 style="margin:0 0 6px 0;font-size:1.55rem">Plateforme Predictive des Metiers en Tension — IDF</h2>
 <p style="margin:0;opacity:0.92;font-size:0.92rem">
 PPMT identifie les metiers en tension en Ile-de-France a partir des donnees <b>Adzuna</b> et <b>France Travail</b>.
-Le modele <b>Random Forest (R²=0.9952)</b> predit l\'indice de tension par metier (code ROME).
+L\'indice de tension (ITM) compare le volume d\'offres de chaque metier (code ROME) a la moyenne : 100 = metier moyen. Un modele ML experimental (XGBoost, AUC 0,84) repere les metiers en tension a partir du profil de leurs offres.
 Utilisez les filtres a gauche pour explorer par departement, contrat ou secteur.
 </p>
 <div style="margin-top:12px">
@@ -556,13 +575,13 @@ with tab5:
 
     m1,m2,m3,m4 = st.columns(4)
     with m1:
-        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#003189">0.9952</div><div class="ml-label">R² modele</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#003189">0.84</div><div class="ml-label">AUC (validation croisee)</div></div>', unsafe_allow_html=True)
     with m2:
-        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#38A169">2.24</div><div class="ml-label">MAE (erreur)</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#38A169">0.77</div><div class="ml-label">F1-score</div></div>', unsafe_allow_html=True)
     with m3:
-        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#C53030;font-size:1.2rem">Random Forest</div><div class="ml-label">Modele retenu</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#C53030;font-size:1.2rem">XGBoost</div><div class="ml-label">Modele experimental</div></div>', unsafe_allow_html=True)
     with m4:
-        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#DD6B20">790</div><div class="ml-label">Metiers predits</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ml-card"><div class="ml-val" style="color:#DD6B20">446</div><div class="ml-label">Metiers evalues (≥10 offres)</div></div>', unsafe_allow_html=True)
 
     st.divider()
 
@@ -591,8 +610,8 @@ with tab5:
                 st.info("Aucune donnee pour cette combinaison de filtres.")
 
     with col2:
-        st.markdown("#### Statut predit (Random Forest)")
-        st.markdown('<div class="section-note">Statut predit par le modele ML — 790 metiers. Source : <b>predictions_itm.csv</b></div>', unsafe_allow_html=True)
+        st.markdown("#### Statut ITM — modele V1")
+        st.markdown('<div class="section-note">Statut ITM reproduit par le modele V1 (regression — fuite de donnees identifiee, voir dossier). Source : <b>predictions_itm.csv</b></div>', unsafe_allow_html=True)
         if len(df_pred)>0:
             df_s_pred = df_pred["statut_predit"].value_counts().reset_index()
             df_s_pred.columns = ["statut","nb"]
@@ -644,29 +663,26 @@ with tab5:
     col5,col6 = st.columns(2)
     with col5:
         st.markdown("#### Offres actives par departement IDF")
-        st.markdown('<div class="section-note">Sources combinees Adzuna + France Travail. Taille = nb offres.</div>', unsafe_allow_html=True)
-        if "departement" in df_all.columns:
-            df_dept = df_all.groupby("departement").size().reset_index(name="nb")
-            df_dept = df_dept[df_dept["departement"].notna()]
-            coords = {
-                "Paris":[48.8566,2.3522],"Hauts-de-Seine (92)":[48.8294,2.2350],
-                "Seine-Saint-Denis (93)":[48.9362,2.4597],"Val-de-Marne (94)":[48.7833,2.4667],
-                "Yvelines (78)":[48.7808,1.9875],"Essonne (91)":[48.5333,2.2500],
-                "Val-d Oise (95)":[49.0500,2.1167],"Seine-et-Marne (77)":[48.6000,2.8833],
-                "Ile-de-France (autre)":[48.8000,2.5000]
-            }
-            df_dept["lat"] = df_dept["departement"].map(lambda x: coords.get(x,[48.85,2.35])[0])
-            df_dept["lon"] = df_dept["departement"].map(lambda x: coords.get(x,[48.85,2.35])[1])
+        st.markdown('<div class="section-note">Sources combinees Adzuna + France Travail. Contours et centres des departements : fichier de reference <b>data/ref/departements_idf.geojson</b> (collecte C1). Couleur = nb offres.</div>', unsafe_allow_html=True)
+        geo = load_geojson()
+        if "departement" in df_all.columns and geo:
+            df_dept = df_all.assign(code_dept=df_all["departement"].map(code_dept_depuis_libelle))
+            df_dept = df_dept.dropna(subset=["code_dept"]).groupby("code_dept").size().reset_index(name="nb")
+            noms = {f["properties"]["code"]: f["properties"]["nom"] for f in geo["features"]}
+            df_dept["departement"] = df_dept["code_dept"].map(noms)
             if len(df_dept) > 0:
-                fig_map = px.scatter_mapbox(df_dept, lat="lat", lon="lon", size="nb",
-                    color="nb", hover_name="departement",
-                    hover_data={"nb":True,"lat":False,"lon":False},
-                    color_continuous_scale=["#EBF8FF","#003189"],
-                    size_max=60, zoom=9, mapbox_style="carto-positron")
-                fig_map.update_layout(height=420, coloraxis_showscale=False)
+                fig_map = px.choropleth_mapbox(df_dept, geojson=geo, locations="code_dept",
+                    featureidkey="properties.code", color="nb", hover_name="departement",
+                    hover_data={"nb":True,"code_dept":False},
+                    color_continuous_scale=["#EBF8FF","#003189"], opacity=0.75,
+                    mapbox_style="carto-positron", zoom=7.6, center={"lat":48.72,"lon":2.5},
+                    labels={"nb":"Offres"})
+                fig_map.update_layout(height=420, margin=dict(l=0,r=0,t=0,b=0))
                 st.plotly_chart(fig_map, width="stretch")
             else:
                 st.info("Aucune donnee pour cette combinaison de filtres.")
+        else:
+            st.info("Carte indisponible : lancer python src/collect.py --source geojson")
 
     with col6:
         st.markdown("#### Metiers en tension IDF vs offres actives")

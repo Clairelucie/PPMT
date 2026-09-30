@@ -1,229 +1,120 @@
-# PPMT — Prédiction des Pénuries de Main-d'Œuvre par Territoire
+# PPMT — Plateforme Prédictive des Métiers en Tension (Île-de-France)
 
 [![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.x-red)](https://streamlit.io)
-[![Random Forest](https://img.shields.io/badge/ML-Random%20Forest%20R²%3D0.9952-green)]()
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)](https://fastapi.tiangolo.com)
+[![Tests](https://img.shields.io/badge/pytest-57%20tests-green)]()
 [![RNCP](https://img.shields.io/badge/RNCP-37827BC01-orange)]()
 
-**Équipe** : Claire DIOUF & Bernard GBOHOUGNON  
-**Formation** : Data Analyst — RNCP37827BC01 — Artefact  
-**Périmètre** : Île-de-France — Adzuna + France Travail  
-**Soutenance** : 29 mai 2026
+**Équipe** : Claire DIOUF & Bernard GBOHOUGNON · **Formation** : Développeur en IA — Artefact
+**Bloc** : RNCP37827BC01 — Réaliser la collecte, le stockage et la mise à disposition des données d'un projet en IA
 
 ---
 
-## 1. Présentation du Projet
+## 1. Le service
 
-PPMT est une plateforme de veille automatisée du marché du travail français. Elle combine des données d'offres d'emploi en temps réel et des statistiques institutionnelles pour **prédire les métiers en tension par territoire**.
+PPMT repère les métiers qui recrutent le plus en Île-de-France en croisant les offres **France Travail** (API officielle OAuth2) et **Adzuna** (agrégateur). Les données sont collectées, nettoyées, stockées en base SQLite, puis mises à disposition par une **API REST sécurisée** et un **dashboard Streamlit**.
 
-**Problématique** : Comment identifier automatiquement les métiers en tension de recrutement en Île-de-France afin d'améliorer l'orientation des demandeurs d'emploi et anticiper les pénuries de compétences ?
+**Problématique** : comment identifier automatiquement les métiers en tension de recrutement en Île-de-France pour mieux orienter candidats, recruteurs et organismes de formation ?
 
-**Cibles** : Cabinets de recrutement · Candidats · Conseillers France Travail · Décideurs RH
-
----
-
-## 2. Architecture du Pipeline
+## 2. Architecture
 
 ```
-C1 — Collecte          C2/C3 — Nettoyage         C4 — Stockage         C5 — Service
-────────────────    ──────────────────────    ─────────────────    ─────────────────────
-API Adzuna       →  clean_adzuna.py        →  SQLite              →  Streamlit Dashboard
-API France Travail  clean_ft.py               database.db             6 onglets interactifs
-extract_api_ft.py   remap_categories.py       itm_consolide.csv       Filtres sidebar
-                    mapping_adzuna_rome.py     predictions_itm.csv     KPI cards
-                                                                       Bubble map IDF
-                         ML : notebook/ml_tests.py
-                         Random Forest R²=0.9952 — modele_itm.pkl
+C1 Collecte            C2/C3 Préparation        C4 Stockage                 C5 Mise à disposition
+─────────────────      ───────────────────      ─────────────────────       ──────────────────────
+API France Travail  →  src/prepare.py        →  src/store.py            →   api/main.py (FastAPI)
+API Adzuna             dédoublonnage            SQLite data/ppmt.db          7 endpoints · X-API-Key
+Contours + communes    salaires (médianes) ·      4 tables · FK · index        Swagger /docs
+src/collect.py         départements · RGPD      agrégation SQL (ITM)     →   webapp/app.py (Streamlit)
+                       run_pipeline.py orchestre C1 → C4 · tests/ (pytest)
 ```
 
----
+## 3. Installation et lancement
 
-## 3. Structure du Projet
+```bash
+git clone https://github.com/maninconseil-commits/PPMT.git && cd PPMT
+pip install -r requirements.txt
+cp .env.example .env            # renseigner les clés France Travail et Adzuna
+
+python run_pipeline.py --collect   # C1 → C4 (sans --collect : repart des CSV versionnés)
+pytest tests/ -v                   # 57 tests
+uvicorn api.main:app --reload      # API → http://localhost:8000/docs
+streamlit run webapp/app.py        # dashboard → http://localhost:8501
+```
+
+Planification quotidienne : `0 7 * * * cd ~/PPMT && python3 run_pipeline.py --collect >> logs/cron.log 2>&1`
+
+## 4. Structure
 
 ```
 PPMT/
-├── data/                          # Non versionné (.gitignore)
-│   ├── offres_idf.csv             # Brut Adzuna
-│   ├── offres_ft_idf.csv          # Brut France Travail
-│   ├── offres_idf_clean.csv       # Adzuna nettoyé (4 626 offres)
-│   ├── offres_ft_idf_clean.csv    # FT nettoyé (24 051 offres)
-│   ├── itm_consolide.csv          # 1 102 métiers consolidés
-│   ├── predictions_itm.csv        # Prédictions ML (790 lignes)
-│   └── database.db                # Base SQLite
-├── sources/
-│   ├── clean_adzuna.py            # Nettoyage Adzuna (C2)
-│   ├── clean_ft.py                # Nettoyage France Travail (C2)
-│   ├── create_db.py               # Création SQLite (C4)
-│   ├── extract_api_ft.py          # API France Travail OAuth2 (C1)
-│   ├── mapping_adzuna_rome.py     # Mapping codes ROME (C3)
-│   └── remap_categories.py        # Reclassification catégories (C3)
-├── notebook/
-│   ├── ml_tests.py                # Comparatif 3 modèles ML + Random Forest
-│   └── bernard_nettoyage.py       # Exploration données
-├── webapp/
-│   ├── app.py                     # Dashboard Streamlit 6 onglets (C5)
-│   └── models/
-│       ├── modele_itm.pkl         # Random Forest R²=0.9952
-│       ├── scaler_itm.pkl
-│       └── features_itm.pkl
-├── docs/
-│   ├── dictionnaire.md            # Dictionnaire des 4 datasets
-│   └── soutenance/
-│       └── PPMT_Soutenance_RNCP37827BC01.pptx
-├── .env                           # Non versionné — clés API
-├── README.md
-└── requirements.txt
+├── src/
+│   ├── collect.py        C1 — API France Travail (OAuth2, pagination par département), API Adzuna, GeoJSON
+│   ├── prepare.py        C2/C3 — nettoyage, normalisation, dédoublonnage, pseudonymisation
+│   └── store.py          C4 — schéma SQLite, chargement, agrégation SQL, purge RGPD
+├── api/main.py           C5 — API REST FastAPI
+├── tests/test_pipeline.py  57 tests (collecte simulée, règles, base, API)
+├── run_pipeline.py       orchestrateur
+├── notebook/ml_tests.py  expérimentation ML (hors BC01)
+├── webapp/app.py         dashboard Streamlit
+├── sources/              scripts de la V1 (historique)
+├── data/ref/             departements_idf.geojson (contours) · communes_idf.csv (1 276 communes) — versionnés
+├── docs/                 dictionnaire.md · rgpd.md · soutenance/
+└── Dockerfile            image de l'API
 ```
 
----
+## 4 bis. Préparation — méthodes retenues
 
-## 4. Datasets
+| Problème | Méthode |
+|---|---|
+| Salaires non affichés (64 %) | Médiane des salaires affichés : métier × département → métier → domaine ROME → département → région ; `salaire_impute`, `salaire_source` |
+| Codes ROME Adzuna | Intitulé identique à des offres France Travail, sinon catégorie Adzuna ; fourre-tout M1607 écarté |
+| Lieux sans département | Référentiel des 1 276 communes d'Île-de-France |
+| Doublons | URL puis titre + entreprise + lieu, entre les deux sources |
 
-| Fichier | Lignes | Description | Source |
-|---------|--------|-------------|--------|
-| `offres_idf_clean.csv` | 4 626 | Offres Adzuna nettoyées | API Adzuna |
-| `offres_ft_idf_clean.csv` | 24 051 | Offres France Travail nettoyées | API FT OAuth2 |
-| `itm_consolide.csv` | 1 102 | Dataset ML consolidé (ITM par métier) | Adzuna + FT |
-| `predictions_itm.csv` | 790 | Prédictions Random Forest | ML pipeline |
+## 5. Base de données (`data/ppmt.db`)
 
-**Seuils ITM** : SATURÉ <50 · ÉQUILIBRÉ 50-100 · EN TENSION 100-150 · TRÈS EN TENSION >150
+| Table | Lignes | Clé | Rôle |
+|---|---|---|---|
+| `departements` | 8 | `code_dept` | référentiel des 8 départements : centre géographique et superficie calculés depuis le GeoJSON |
+| `metiers_rome` | 1 100 | `code_rome` | référentiel ROME (libellé officiel France Travail) |
+| `offres` | 28 219 | `id`, `hash_offre` UNIQUE | une ligne par offre, FK vers les deux référentiels |
+| `indicateurs_tension` | 1 100 | `code_rome` | agrégats par métier calculés en SQL |
 
----
+**Indice de tension (ITM)** = nombre d'offres du métier ÷ nombre moyen d'offres par métier × 100 (100 = métier moyen).
+Statuts : SATURÉ < 50 · ÉQUILIBRÉ 50–100 · EN TENSION 100–150 · TRÈS EN TENSION > 150.
+L'ITM mesure la pression de la demande des employeurs (côté offres) ; PPMT ne dispose pas du nombre de candidats.
 
-## 5. Installation
+## 6. API
+
+| Méthode | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | disponibilité (public) |
+| GET | `/offres` | liste paginée — filtres `departement`, `code_rome`, `source`, `contrat`, `q` |
+| GET | `/offres/{id}` | détail d'une offre |
+| GET | `/metiers` | indicateurs de tension, tri décroissant, filtre `statut` |
+| GET | `/metiers/{code_rome}` | fiche métier : répartition par département et par contrat |
+| GET | `/stats/departements` | volume, densité (offres / 100 km²), part de CDI, salaire moyen, coordonnées |
+| GET | `/stats/tension` | nombre de métiers et d'offres par statut |
 
 ```bash
-git clone https://github.com/maninconseil-commits/PPMT.git
-cd PPMT
-pip install -r requirements.txt
+curl -H "X-API-Key: $PPMT_API_KEY" "http://localhost:8000/metiers?statut=TRES%20EN%20TENSION&limit=5"
 ```
 
-Créer le fichier `.env` :
-```
-FT_CLIENT_ID=votre_client_id
-FT_CLIENT_SECRET=votre_client_secret
-ADZUNA_APP_ID=votre_app_id
-ADZUNA_APP_KEY=votre_app_key
-```
+## 7. Machine Learning (expérimentation, hors BC01)
 
----
+- **V1** (régression de l'ITM à partir des volumes d'offres, R² = 0,995) **écartée** : l'ITM est calculé à partir de ces volumes → fuite de données.
+- **V2** : classification « en tension » à partir du **profil** des offres (contrats, salaires, expérience, famille ROME), sans variable de volume, sur 446 métiers ayant au moins 10 offres. Validation croisée à 5 plis, trois modèles comparés : régression logistique (AUC 0,58), Random Forest (AUC 0,82), **XGBoost retenu (AUC 0,84 · F1 0,77)**. Un classement au hasard donne 0,5.
+- Prochaine étape : croiser avec le nombre de demandeurs d'emploi par code ROME et accumuler des collectes quotidiennes pour une vraie prévision à 3 mois.
 
-## 6. Requirements
+## 8. RGPD
 
-```
-pandas>=1.5
-numpy>=1.23
-requests>=2.28
-scikit-learn>=1.1
-xgboost>=1.7
-joblib>=1.2
-streamlit>=1.20
-plotly>=5.10
-python-dotenv>=0.21
-matplotlib>=3.6
-seaborn>=0.12
-```
+Aucune donnée de candidat. E-mails et téléphones masqués avant stockage, conservation 12 mois glissants, API en lecture seule. Registre : [`docs/rgpd.md`](docs/rgpd.md).
 
----
+## 9. Organisation
 
-## 7. Lancement
+| Membre | Contributions |
+|---|---|
+| Claire DIOUF | V1 : collecte France Travail (OAuth2), dashboard, ML · V2 : refonte collect / prepare / store en modules testables, API FastAPI, tests, correction du ML |
+| Bernard GBOHOUGNON | V1 : collecte et nettoyage Adzuna, mapping catégories → ROME, administration Git · V2 : journalisation (logs) et idempotence du pipeline |
 
-### Pipeline complet (ordre obligatoire)
-
-```bash
-python3 sources/clean_adzuna.py
-python3 sources/clean_ft.py
-python3 sources/remap_categories.py
-python3 sources/create_db.py
-python3 sources/mapping_adzuna_rome.py
-python3 notebook/ml_tests.py
-```
-
-### Dashboard
-
-```bash
-streamlit run webapp/app.py
-```
-
-Accès : http://localhost:8501
-
----
-
-## 8. Modèle Machine Learning
-
-| Modèle | MAE | R² | Décision |
-|--------|-----|----|----------|
-| Régression Linéaire | 0.02 | 1.0000 | ❌ ÉCARTÉ — data leakage |
-| XGBoost | 2.72 | 0.9940 | Non retenu |
-| **Random Forest** | **2.24** | **0.9952** | ✅ **RETENU** |
-
-**Features** : `nb_offres_ft`, `nb_offres_adzuna`, `nb_offres_total`, `salaire_moyen_ft`, `salaire_moyen_adzuna`, `salaire_moyen`
-
-**Data leakage détecté** : `nb_offres_total = nb_offres_ft + nb_offres_adzuna` — la régression linéaire trouve la combinaison exacte → R²=1.0 artificiel.
-
----
-
-## 9. Dashboard Streamlit — 6 Onglets
-
-| Onglet | Contenu |
-|--------|---------|
-| Vue d'ensemble | KPIs, répartition statuts ITM, Top 10 tension, offres mai 2026 |
-| Secteurs | État actuel vs Prédictions, contrats FT et Adzuna |
-| Compétences & Tech | Hard skills, Soft skills, Technologies émergentes |
-| Formations & Recrutement | Niveaux requis, modalités, CDI/CDD Top 10 |
-| Métiers en Tension | Statut actuel vs prédit, bubble map IDF, scatter ITM |
-| Salaires | FT vs Adzuna par métier, par secteur, par département |
-
----
-
-## 10. Résultats Clés
-
-- **29 031** offres analysées (Adzuna + France Travail)
-- **1 102** métiers identifiés en IDF
-- **176** métiers TRÈS EN TENSION
-- **8/10** du Top 10 BMO 2025 confirmés TRÈS EN TENSION
-
-**Top 5 métiers en tension IDF** :
-1. Soins infirmiers J1502 — ITM 2 885
-2. Informatique/Dev M1805 — ITM 2 791
-3. Immobilier C1504 — ITM 2 243
-4. Aide ménagère K1304 — ITM 2 005
-5. Aide sociale K1311 — ITM 1 575
-
----
-
-## 11. Perspectives
-
-- Intégration API France Travail Offres (accès partenaire)
-- Modèle de série temporelle (LSTM / Prophet) pour prédictions 6-12 mois
-- Déploiement Streamlit Cloud avec authentification
-- Extension à d'autres régions françaises
-- Pipeline MLOps (MLflow + Airflow)
-
----
-
-## 12. Organisation du Projet
-
-| Membre | Rôle | Responsabilités |
-|--------|------|-----------------|
-| Bernard | Data Analyst + Admin Git | Adzuna, SQLite, mapping ROME, GitHub |
-| Claire | Data Analyst + ML | France Travail, API FT, Random Forest, Dashboard |
-
-**Méthode** : Points matin/soir · Push Git quotidien · Branches par fonctionnalité · Pull Requests
-
----
-
-## Compétences RNCP37827BC01
-
-| Compétence | Livrable |
-|-----------|----------|
-| C1 — Collecte automatisée | `extract_api_ft.py` + API Adzuna |
-| C2 — Préparation données | `clean_adzuna.py` + `clean_ft.py` |
-| C3 — Agrégation | `mapping_adzuna_rome.py` + `remap_categories.py` |
-| C4 — Base de données | `create_db.py` + `database.db` + `dictionnaire.md` |
-| C5 — Service numérique | `webapp/app.py` — Dashboard Streamlit |
-
----
-
-*Formation Data Analyst — RNCP37827BC01 — Artefact — 2026*  
-*Repo : https://github.com/maninconseil-commits/PPMT*
+*Formation Développeur en IA — RNCP37827BC01 — Artefact — 2026*
