@@ -157,6 +157,172 @@ def ft_aplatir(o: dict) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Collecte France Travail en CASCADE (v3) : contourne le plafond de 3 150 offres / requête
+#   niveau 1 : département  → si total réel > plafond :
+#   niveau 2 : commune      → si total réel > plafond :
+#   niveau 3 : date de création (fenêtre coupée en deux, jusqu'à 1 heure) → si encore > plafond :
+#   niveau 4 : type de contrat → si encore > plafond : avertissement (offres tronquées)
+# Le total réel est lu dans l'en-tête HTTP Content-Range ("offres 0-149/12345").
+# Les offres sont dédoublonnées sur leur identifiant.
+# ═══════════════════════════════════════════════════════════════════════════
+import datetime as _dt
+
+FT_MAX_RESULTS = FT_MAX_START + FT_PAGE        # 3 150 : plafond d'une requête
+FT_FENETRE_JOURS = 365                         # fenêtre initiale du découpage par date de création
+FT_MIN_FENETRE = _dt.timedelta(hours=1)        # on ne coupe pas en dessous d'une heure
+FT_PAR_COMMUNE = False                         # le filtre « commune » de l'API est instable (ignoré à Paris, HTTP 400 ailleurs)
+FT_MAX_APPELS = 8000                           # garde-fou : arrêt si la cascade s'emballe
+FT_PAUSE = 0.25                                # secondes entre deux appels (≈ 4 appels / s)
+FT_TYPES_CONTRAT = ["CDI", "CDD", "MIS", "SAI", "LIB", "REP", "FRA", "CCE", "DIN", "DDI", "TTI"]
+# Paris : on interroge par arrondissement (codes INSEE 75101 à 75120) — À VÉRIFIER au premier test
+FT_COMMUNES_SPECIALES = {"75": [f"751{i:02d}" for i in range(1, 21)]}
+
+
+class _FTClient:
+    """Appels à l'API de recherche : jeton renouvelé toutes les 20 min (et sur HTTP 401)."""
+
+    def __init__(self, session, get_token):
+        self.s, self.get_token = session, get_token
+        self.token, self.t0, self.appels = None, 0.0, 0
+
+    def _headers(self):
+        if self.token is None or time.time() - self.t0 > 20 * 60:
+            self.token, self.t0 = self.get_token(), time.time()
+        return {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
+
+    def page(self, params, start):
+        if self.appels >= FT_MAX_APPELS:
+            raise RuntimeError(f"Garde-fou : {FT_MAX_APPELS} appels atteints, collecte arrêtée")
+        """Renvoie (offres de la page, total réel annoncé par l'API pour ces filtres)."""
+        p = {**params, "range": f"{start}-{start + FT_PAGE - 1}"}
+        for essai in (1, 2):
+            try:
+                r = get_with_retry(self.s, FT_SEARCH_URL, params=p, headers=self._headers())
+                break
+            except requests.HTTPError as e:
+                if essai == 1 and e.response is not None and e.response.status_code == 401:
+                    self.token = None          # jeton expiré : on en redemande un
+                    continue
+                raise
+        self.appels += 1
+        time.sleep(FT_PAUSE)                   # quota : 10 appels / seconde maximum
+        if r.status_code == 204:
+            return [], 0
+        page = r.json().get("resultats", [])
+        cr = r.headers.get("Content-Range", "")
+        total = int(cr.rsplit("/", 1)[1]) if "/" in cr else len(page)
+        return page, total
+
+
+def _ft_iso(d):
+    return d.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _ft_communes(csv_path):
+    """{code_dept: [codes INSEE]} depuis data/ref/communes_idf.csv (colonnes code_insee, code_dept)."""
+    res = {}
+    try:
+        df = pd.read_csv(csv_path, dtype=str)
+        for dept, g in df.groupby("code_dept"):
+            res[dept] = sorted(g["code_insee"])
+    except Exception as e:
+        log.warning(f"  Liste des communes illisible ({e}) — découpage par commune désactivé")
+    for dept, codes in FT_COMMUNES_SPECIALES.items():
+        res[dept] = codes
+    return res
+
+
+def _ft_collecter(cl, params, fen, communes, out, stats, niveau="zone", parent_total=None):
+    """Collecte les offres correspondant à `params` (+ fenêtre de dates `fen`) dans `out` (id → offre).
+    Renvoie le total réel annoncé par l'API pour ces filtres."""
+    p = dict(params)
+    if fen:
+        p["minCreationDate"], p["maxCreationDate"] = _ft_iso(fen[0]), _ft_iso(fen[1])
+    page, total = cl.page(p, 0)
+    if total == 0:
+        return 0
+    if parent_total is not None and total > parent_total:
+        # une commune ne peut pas avoir plus d'offres que son département : l'API a ignoré le filtre
+        stats['commune_ignoree'] += 1
+        log.warning(f"  commune {params.get('commune')} : {total} offres annoncées > {parent_total} (zone parente) — filtre ignoré, commune sautée")
+        return 0
+
+    def lire_pages():
+        for o in page:
+            out[o["id"]] = o
+        start = FT_PAGE
+        while start < min(total, FT_MAX_RESULTS):
+            suite, _ = cl.page(p, start)
+            if not suite:
+                break
+            for o in suite:
+                out[o["id"]] = o
+            start += FT_PAGE
+
+    if total <= FT_MAX_RESULTS:
+        lire_pages()
+        return total
+
+    # ── trop d'offres pour une seule requête : on descend d'un niveau ──
+    if "departement" in params and not fen:                        # niveau 2 : communes
+        liste = communes.get(params["departement"]) if FT_PAR_COMMUNE else None
+        if liste:                                                  # le filtre commune fonctionne-t-il ?
+            _, t_essai = cl.page({"commune": liste[0]}, 0)
+            if t_essai > total:
+                log.warning(f"  dépt {params['departement']} : le filtre par commune ne fonctionne pas "
+                            f"({liste[0]} → {t_essai} offres > {total}) — découpage par date sur le département")
+                liste = None
+        if liste:
+            log.info(f"  dépt {params['departement']} : {total} offres > {FT_MAX_RESULTS} → découpage par commune")
+            for code in liste:
+                try:
+                    _ft_collecter(cl, {"commune": code}, None, communes, out, stats, "commune", parent_total=total)
+                except requests.HTTPError as e:
+                    stats['commune_ignoree'] += 1
+                    log.warning(f"  commune {code} refusée par l'API ({e}) — sautée")
+            return total
+    if not fen:                                                    # niveau 3 : dates de création
+        fin = _dt.datetime.utcnow().replace(microsecond=0) + FT_MIN_FENETRE
+        fen = (fin - _dt.timedelta(days=FT_FENETRE_JOURS), fin)
+        zone = params.get("commune") or params.get("departement")
+        log.info(f"  zone {zone} : {total} offres > {FT_MAX_RESULTS} → découpage par date de création")
+    if fen[1] - fen[0] > FT_MIN_FENETRE:
+        milieu = fen[0] + (fen[1] - fen[0]) / 2
+        milieu = milieu.replace(microsecond=0)
+        _ft_collecter(cl, params, (fen[0], milieu), communes, out, stats, "date")
+        _ft_collecter(cl, params, (milieu + _dt.timedelta(seconds=1), fen[1]), communes, out, stats, "date")
+        return total
+    if "typeContrat" not in params:                                # niveau 4 : type de contrat
+        for tc in FT_TYPES_CONTRAT:
+            _ft_collecter(cl, {**params, "typeContrat": tc}, fen, communes, out, stats, "contrat")
+        return total
+    stats["tronque"] += total - FT_MAX_RESULTS
+    log.warning(f"  Fenêtre {fen[0]:%Y-%m-%d %H:%M} / {params} : {total} offres, seules {FT_MAX_RESULTS} sont lisibles")
+    lire_pages()
+    return total
+
+
+def ft_collecte_cascade(session, get_token, depts, communes_csv):
+    """Collecte toutes les offres France Travail des départements `depts` (liste de codes)."""
+    cl = _FTClient(session, get_token)
+    communes = _ft_communes(communes_csv)
+    toutes, bilan = {}, []
+    for d in depts:
+        out, stats = {}, {"tronque": 0, "commune_ignoree": 0}
+        total = _ft_collecter(cl, {"departement": d}, None, communes, out, stats)
+        toutes.update(out)
+        bilan.append((d, len(out), total, stats["tronque"], stats["commune_ignoree"]))
+        log.info(f"  France Travail dépt {d} : {len(out)} offres collectées / {total} annoncées par l'API")
+    log.info("  ── Couverture France Travail ──")
+    for d, n, total, tr, ign in bilan:
+        pct = f"{100 * n / total:.0f} %" if total else "-"
+        log.info(f"  dépt {d} : {n} / {total} ({pct})" + (f" — {tr} tronquées" if tr else "")
+                 + (f" — {ign} communes ignorées par l'API" if ign else ""))
+    log.info(f"  Total : {len(toutes)} offres uniques, {cl.appels} appels API")
+    return list(toutes.values())
+
+
 def collect_france_travail(force: bool = False) -> Path | None:
     dest = fichier_du_jour("france_travail")
     if dest.exists() and not force:
@@ -167,8 +333,8 @@ def collect_france_travail(force: bool = False) -> Path | None:
         log.error("FT_CLIENT_ID / FT_CLIENT_SECRET absents du .env — collecte France Travail ignorée")
         return None
     with requests.Session() as s:
-        token = ft_token(s, cid, secret)
-        brut = [o for d in DEPARTEMENTS_IDF for o in ft_offres_departement(s, token, d)]
+        brut = ft_collecte_cascade(s, lambda: ft_token(s, cid, secret), DEPARTEMENTS_IDF,
+                                   REF_DIR / "communes_idf.csv")
     dest.write_text(json.dumps(brut, ensure_ascii=False), encoding="utf-8")
     pd.DataFrame([ft_aplatir(o) for o in brut]).to_csv(RAW_DIR.parent / "offres_ft_idf.csv", index=False)
     log.info(f"France Travail : {len(brut)} offres → {dest.name} (MD5 {md5(dest)})")

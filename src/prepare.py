@@ -237,9 +237,40 @@ def depuis_brut_ft(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Catégorie Adzuna -> code ROME (V1, sources/mapping_adzuna_rome.py) : repli quand l'intitulé ne suffit pas
+CATEGORIE_ROME = {
+    "Emplois Informatique": "M1805",
+    "Emplois Comptabilité et Finance": "M1202",
+    "Emplois Soins de santé et infirmiers": "J1502",
+    "Emplois RP, Publicité et Marketing": "E1103",
+    "Emplois Ingénierie": "H1206",
+    "Emplois Industrie et Construction": "F1602",
+    "Emplois Hospitalité et Restauration": "G1602",
+    "Emplois Distribution et Entrepôts": "N1103",
+    "Emplois Vente": "D1505",
+    "Emplois RH et Recrutement": "M1502",
+    "Emplois Enseignement": "K2107",
+    "Emplois Immobilier": "C1504",
+    "Emplois Administration": "M1602",
+    "Emplois Maintenance": "I1304",
+    "Emplois Création et Design": "E1205",
+    "Emplois Scientifiques et AQ": "H1502",
+    "Emplois Services client": "M1703",
+    "Emplois Travail social": "K1201",
+    "Emplois Consultants": "M1402",
+    "Emplois Fabrication": "H2909",
+    "Emplois Droit": "K1901",
+    "Emploi Aide ménagère et Nettoyage": "K1304",
+    "Emplois Voyages": "G1401",
+    "Emplois Énergie, pétrole et gaz": "H2301",
+    "Emplois Diplômés": "M1402",
+}
+
+
 def depuis_brut_adzuna(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={"date": "date_publication"}).copy()
     df["categorie"] = df["categorie"].fillna("Unknown")
+    df["code_rome"] = df["categorie"].map(CATEGORIE_ROME)   # rattachement par catégorie (V1)
     return df
 
 
