@@ -1,101 +1,134 @@
-# Dictionnaire des Donnees - PPMT
+# Dictionnaire des données — PPMT (V2, collecte du 6 octobre 2026)
 
-Projet Data Analyst - Soutenance 29/05/2026
-Equipe : Bernard | Claire
+Projet RNCP37827BC01 — soutenance du 15 octobre 2026. Équipe : Claire Lucie DIOUF, Bernard GBOHOUGNON.
 
----
+Ce dictionnaire décrit la **base SQLite `data/ppmt.db`** produite par `run_pipeline.py` (C1 → C4), puis les fichiers de sortie du Machine Learning. Il remplace la version de mai 2026 (V1), qui décrivait des fichiers CSV séparés (4 626 offres Adzuna, 24 051 offres France Travail, 1 102 métiers).
 
-## 1. offres_idf_clean.csv — Offres Adzuna nettoyees (4 626 offres)
-
-| Colonne | Type | Description | Valeurs possibles | Qualite |
-|---------|------|-------------|-------------------|---------|
-| titre | str | Intitule du poste | Texte libre | Nettoye - 354 offres parasites supprimees |
-| entreprise | str | Nom de l'entreprise | Texte libre | Non renseigne si vide |
-| lieu | str | Ville ou region | Texte libre | Ile-de-France uniquement |
-| salaire_min | float | Salaire minimum annuel brut (EUR) | 0 - 200 000 | 71% manquants - enrichi via mediane FT |
-| salaire_max | float | Salaire maximum annuel brut (EUR) | 0 - 200 000 | 71% manquants |
-| salaire_moyen | float | Moyenne salaire_min et salaire_max | 0 - 200 000 | Calcule |
-| date_publication | date | Date de publication de l'offre | YYYY-MM-DD | Normalise ISO 8601 |
-| contrat | str | Type de contrat normalise | CDI / CDD / Interim / Autre | Normalise depuis Full-time/Permanent/Contract |
-| categorie | str | Secteur metier | Emplois Informatique / Sante & medical / ... | 20 categories dont Autres/General |
-| code_rome | str | Code metier ROME 4.0 | Ex: M1805, J1502 | 19 codes uniques assignes |
-| url | str | Lien vers l'offre originale | URL | Peut etre expire |
-| annee | int | Annee extraite de date_publication | 2025 / 2026 | Calcule |
-| mois | int | Mois extrait de date_publication | 1 - 12 | Calcule |
-| age_jours | int | Nombre de jours depuis publication | 0 - 365 | Calcule |
-| is_recente | bool | Offre de moins de 30 jours | True / False | Calcule |
+Volumes : **62 435 offres** (France Travail 58 301 · Adzuna 4 134), **1 514 codes ROME**, **8 départements**, 1 514 lignes d'indicateurs de tension.
 
 ---
 
-## 2. offres_ft_idf_clean.csv — Offres France Travail nettoyees (24 051 offres)
+## 1. Table `offres` — 62 435 lignes
 
-| Colonne | Type | Description | Valeurs possibles | Qualite |
-|---------|------|-------------|-------------------|---------|
-| titre | str | Intitule du poste | Texte libre | Source officielle FT |
-| code_rome | str | Code metier ROME 4.0 | Ex: M1805, J1502 | Fourni directement par FT |
-| appellation_rome | str | Libelle officiel du metier ROME | Texte | Source officielle |
-| entreprise | str | Nom de l'entreprise | Texte / Non renseigne | 64.7% manquants - remplace par Non renseigne |
-| lieu | str | Ville ou commune | Texte libre | IDF uniquement |
-| departement | str | Code departement | 75 / 77 / 78 / 91 / 92 / 93 / 94 / 95 | 8 departements IDF |
-| contrat | str | Type de contrat normalise | CDI / CDD / Interim / Autre | Normalise depuis CDI/MIS/SAI/... |
-| salaire | str | Libelle salaire brut FT | Texte libre | 65% manquants - conserves tels quels |
-| salaire_moyen_ft | float | Salaire annuel moyen calcule | 0 - 130 000 | Calcule depuis libelle |
-| description | str | Texte de l'offre (300 premiers caracteres) | Texte | Tronque |
-| date_publication | date | Date de creation de l'offre | YYYY-MM-DD | Normalise ISO 8601 |
-| categorie | str | Appellation ROME utilisee comme categorie | Texte | Cree depuis appellation_rome |
+Une ligne par offre d'emploi, sources France Travail et Adzuna projetées sur un schéma commun.
 
----
+| Colonne | Type | Description | Valeurs / contraintes | Qualité |
+|---|---|---|---|---|
+| id | entier | Clé primaire auto-incrémentée | — | — |
+| source | texte | Source de l'offre | `france_travail` ou `adzuna` (CHECK) | France Travail 58 301 · Adzuna 4 134 |
+| id_source | texte | Identifiant de l'offre chez la source | Texte | — |
+| hash_offre | texte | Empreinte de l'offre (identifiant de déduplication) | UNIQUE, non nul | 0 doublon en base |
+| titre | texte | Intitulé du poste | Non nul | Offres parasites écartées à la préparation |
+| entreprise | texte | Nom de l'entreprise | `Non renseigné` si vide | 14 495 non renseignées (France Travail 24,7 %, Adzuna 2,9 %) ; exclues du comptage des entreprises |
+| lieu | texte | Commune ou ville | Texte | Île-de-France uniquement |
+| code_dept | texte | Code du département | 75, 77, 78, 91, 92, 93, 94, 95 — clé étrangère vers `departements` | 32 offres sans département |
+| code_rome | texte | Code métier ROME | Clé étrangère vers `metiers_rome` | 60 325 offres rattachées ; 2 110 sans code (toutes Adzuna) |
+| categorie | texte | Catégorie d'origine | France Travail : appellation ROME ; Adzuna : catégorie du site | Adzuna : 27 catégories distinctes en base |
+| contrat | texte | Type de contrat normalisé | CDI, CDD, Intérim, Libéral, Alternance, Autre, Non renseigné (CHECK) | CDI 38 188 · CDD 10 317 · Intérim 9 298 · Libéral 1 968 · Non renseigné 2 278 · Autre 386 |
+| temps_travail | texte | Temps plein ou partiel | Temps plein, Temps partiel | Renseigné pour 1 122 offres seulement |
+| experience | texte | Expérience demandée | Débutant accepté, 1 An(s), 2 An(s)… | — |
+| salaire_min | réel | Salaire minimum annuel brut (€) | Entre 10 000 et 300 000 (CHECK) | Heures × 1 820, mois × 12 ; bornes inversées permutées |
+| salaire_max | réel | Salaire maximum annuel brut (€) | Entre 10 000 et 300 000 (CHECK) | Idem |
+| salaire_moyen | réel | Moyenne de salaire_min et salaire_max, ou salaire complété | — | 100 % des offres ont un salaire |
+| salaire_impute | entier | 1 si le salaire a été complété, 0 s'il est affiché | 0 ou 1 (CHECK) | 35 000 offres environ complétées |
+| salaire_source | texte | Origine du salaire | `affiché`, `médiane métier × département`, `médiane métier`, `médiane domaine`, `médiane département`, `médiane régionale` | Affiché : 27 438 · métier × département : 24 635 · métier : 6 638 · domaine : 2 035 · département : 1 679 · région : 10 |
+| rome_source | texte | Origine du code ROME | `france_travail`, `intitule`, `categorie` (CHECK), vide si aucun code | France Travail 58 301 · Adzuna par intitulé 636 · par catégorie 1 388 · sans code 2 110 |
+| date_publication | texte | Date de création de l'offre | ISO 8601 | Fenêtre de 12 mois (9 octobre 2025 → 6 octobre 2026) |
+| description | texte | Début de la description | 500 caractères au plus | RGPD : e-mails et téléphones retirés |
+| url | texte | Lien vers l'offre d'origine | URL | Peut être expiré |
+| date_import | texte | Date de chargement en base | ISO 8601 | — |
 
-## 3. itm_consolide.csv — Dataset ML consolide (1 102 metiers)
+Index : département, code ROME, source, contrat, date de publication.
 
-| Colonne | Type | Description | Valeurs possibles | Qualite |
-|---------|------|-------------|-------------------|---------|
-| code_rome | str | Code metier ROME 4.0 | Ex: M1805, J1502 | Cle primaire - 1 102 codes uniques |
-| libelle | str | Libelle du metier | Texte | Source ROME 4.0 |
-| nb_offres_ft | float | Nombre d'offres France Travail | 1 - 479 | Source officielle |
-| nb_offres_adzuna | float | Nombre d'offres Adzuna | 0 - 659 | 0 si pas d'offres Adzuna |
-| nb_offres_total | float | Total offres toutes sources | 1 - 2243 | nb_offres_ft + nb_offres_adzuna |
-| salaire_moyen_ft | float | Salaire moyen FT pour ce metier | 12 000 - 130 000 | Calcule depuis offres FT |
-| salaire_moyen_adzuna | float | Salaire moyen Adzuna pour ce metier | 0 - 58 679 | 0 si pas d'offres Adzuna |
-| salaire_moyen | float | Salaire moyen toutes sources | 12 000 - 130 000 | Moyenne ponderee |
-| indice_tension | float | Indice de tension (ITM) = nb_offres_total / moyenne des métiers × 100 (100 = métier moyen) | 4 - 2 800 | Calculé (pression de la demande employeurs, côté offres) |
-| statut | str | Classification du metier | SATURE / EQUILIBRE / EN TENSION / TRES EN TENSION | Seuils 50/100/150 |
-| source_calcul | str | Source du calcul ITM | France Travail | |
-| date_calcul | date | Date du calcul | YYYY-MM-DD | |
+## 2. Table `metiers_rome` — 1 514 lignes
 
----
+| Colonne | Type | Description | Valeurs / contraintes |
+|---|---|---|---|
+| code_rome | texte | Code métier ROME, clé primaire | Une lettre A à N suivie de 4 chiffres (CHECK), ex. K1304 |
+| libelle | texte | Libellé officiel du métier | Non nul, ex. « Aide ménager / Aide ménagère à domicile » |
 
-## 4. predictions_itm.csv — Predictions Random Forest (1 102 metiers)
+## 3. Table `departements` — 8 lignes
 
-| Colonne | Type | Description | Valeurs possibles | Qualite |
-|---------|------|-------------|-------------------|---------|
-| code_rome | str | Code metier ROME 4.0 | Ex: M1805, J1502 | Cle primaire |
-| libelle | str | Libelle du metier | Texte | |
-| indice_tension | float | Indice de tension reel (ITM) | 4.1 - 2885.7 | Valeur observee |
-| itm_predit | float | Indice de tension predit par le modele ML | 4.1 - 2885.7 | Random Forest R2=0.9952 |
-| ecart | float | Difference entre reel et predit | 0 - 50 | Faible = bonne prediction |
-| statut_predit | str | Statut predit par le modele | SATURE / EQUILIBRE / EN TENSION / TRES EN TENSION | Seuils 50/100/150 |
+| Colonne | Type | Description | Valeurs / contraintes |
+|---|---|---|---|
+| code_dept | texte | Code du département, clé primaire | 2 caractères (75, 77, 78, 91, 92, 93, 94, 95) |
+| nom | texte | Nom du département | Non nul |
+| latitude | réel | Latitude du centre | Entre 48,0 et 49,5 |
+| longitude | réel | Longitude du centre | Entre 1,4 et 3,6 |
+| superficie_km2 | réel | Superficie | Issue du fichier GeoJSON IGN / Insee |
 
----
+## 4. Table `indicateurs_tension` — 1 514 lignes
 
-## 5. Regles de classification des statuts
+Calculée par agrégation SQL (GROUP BY et fonction fenêtre) à partir de `offres`. Une ligne par code ROME.
 
-| Statut | Seuil indice tension | Interpretation | Nb metiers |
-|--------|---------------------|----------------|------------|
-| SATURE | < 50 | Trop de candidats - marche difficile pour trouver un emploi | 723 |
-| EQUILIBRE | 50 - 100 | Offre et demande equilibrees | 145 |
-| EN TENSION | 100 - 150 | Plus d'offres que de candidats - recrutement difficile | 55 |
-| TRES EN TENSION | > 150 | Penurie critique de candidats | 179 |
+| Colonne | Type | Description | Valeurs / contraintes |
+|---|---|---|---|
+| code_rome | texte | Code ROME, clé primaire et clé étrangère | — |
+| nb_offres_ft | entier | Offres France Travail du métier | Ex. K1304 : 1 426 |
+| nb_offres_adzuna | entier | Offres Adzuna du métier | Ex. K1304 : 105 |
+| nb_offres_total | entier | Total des deux sources | De 1 à 1 531 |
+| nb_entreprises | entier | Entreprises distinctes (hors « Non renseigné ») | K1304 : 321 |
+| nb_departements | entier | Départements où le métier est présent | — |
+| part_cdi | réel | Part de CDI, en % | K1304 : 81,1 |
+| salaire_median | réel | Médiane des salaires **affichés** (€) | K1304 : 22 477 |
+| part_salaire_affiche | réel | Part d'offres avec salaire affiché, en % | K1304 : 48,1 |
+| indice_tension | réel | **ITM** = nb_offres_total ÷ moyenne des métiers × 100 (100 = métier moyen) | De 2,5 à 3 842,4 |
+| statut | texte | Classe de tension | Voir § 5 |
+| date_calcul | texte | Date du calcul | ISO 8601 |
 
----
+L'indice mesure la **pression de la demande des employeurs** (côté offres). Il n'intègre pas le nombre de demandeurs d'emploi.
 
-## 6. Top metiers en tension (TRES EN TENSION)
+## 5. Règles de classification des statuts
 
-| Code ROME | Libelle | Indice tension |
-|-----------|---------|----------------|
-| J1502 | Soins infirmiers | 2 885 |
-| M1805 | Informatique / Developpement | 2 791 |
-| C1504 | Immobilier | 2 243 |
-| K1304 | Aide menagere / Nettoyage | 2 005 |
-| K1311 | Aide sociale | 1 575 |
+| Statut | Seuil de l'indice | Interprétation | Métiers |
+|---|---|---|---|
+| SATURE | moins de 50 | Peu d'offres rapportées au métier moyen | 1 006 |
+| EQUILIBRE | 50 à 100 | Niveau proche du métier moyen | 179 |
+| EN TENSION | 100 à 150 | Plus d'offres que la moyenne | 94 |
+| TRES EN TENSION | plus de 150 | Pression très forte de la demande employeurs | 235 |
 
+Les 235 métiers « très en tension » concentrent 45 044 des 60 325 offres rattachées à un code ROME, soit environ 75 %.
+
+## 6. Les cinq métiers les plus en tension
+
+| Code ROME | Libellé | Offres | Indice |
+|---|---|---|---|
+| K1304 | Aide ménager / Aide ménagère à domicile | 1 531 | 3 842,4 |
+| J1506 | Infirmier / Infirmière de soins généraux | 1 152 | 2 891,2 |
+| C1504 | Conseiller / Conseillère immobilier | 983 | 2 467,1 |
+| M1203 | Comptable | 875 | 2 196,0 |
+| K1311 | Auxiliaire de vie | 825 | 2 070,5 |
+
+## 7. Fichiers de sortie du Machine Learning
+
+### `data/predictions_tension.csv` — 717 lignes (métiers de 10 offres ou plus)
+
+| Colonne | Type | Description |
+|---|---|---|
+| code_rome | texte | Code ROME |
+| statut | texte | Statut observé (voir § 5) |
+| indice_tension | réel | Indice de tension observé |
+| proba_tension | réel | Probabilité prédite par XGBoost que le métier soit « en tension » (entre 0 et 1) |
+
+### `data/ml_resultats.json`
+
+Résultats de la validation croisée à 5 plis sur 717 métiers (46 % en tension) :
+
+| Modèle | ROC-AUC | F1 | Précision équilibrée |
+|---|---|---|---|
+| Référence (hasard) | 0,507 | — | — |
+| Régression logistique | 0,611 | 0,558 | 0,561 |
+| Random Forest | 0,874 | 0,761 | 0,783 |
+| **XGBoost (retenu)** | **0,886** | **0,785** | **0,804** |
+
+Variables les plus importantes : longueur_description (0,167), part_interim (0,086), part_cdd (0,073), part_debutant (0,058), famille_rome_C (0,054), part_cdi (0,052).
+
+Le fichier contient aussi la trace de la **version V1** : régression linéaire R² = 1,0000 et Random Forest R² = 0,9999, car la cible était calculée à partir des variables d'entrée (fuite de données). Cette version est écartée.
+
+### `webapp/models/modele_tension.pkl`
+
+Modèle XGBoost entraîné sur les 717 métiers. Les fichiers `modele_itm.pkl`, `scaler_itm.pkl` et `features_itm.pkl` appartiennent à la V1 (conservés pour l'historique).
+
+## 8. Fichiers de la V1 (historique)
+
+`itm_consolide.csv`, `predictions_itm.csv`, `offres_idf_clean.csv` et `offres_ft_idf_clean.csv` datent de la collecte de mai 2026 (24 051 offres France Travail, 4 626 offres Adzuna). La V2 ne les utilise plus : le dashboard et l'API lisent uniquement `data/ppmt.db`.
