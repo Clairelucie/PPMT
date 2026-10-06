@@ -1,132 +1,132 @@
 # PPMT — Plateforme Prédictive des Métiers en Tension (Île-de-France)
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)](https://fastapi.tiangolo.com)
-[![Tests](https://img.shields.io/badge/pytest-57%20tests-green)]()
-[![RNCP](https://img.shields.io/badge/RNCP-37827BC01-orange)]()
+Projet RNCP37827BC01 — Claire Lucie DIOUF — soutenance du 15 octobre 2026.
 
-**Équipe** : Claire DIOUF & Bernard GBOHOUGNON · **Formation** : Développeur en IA — Artefact
-**Bloc** : RNCP37827BC01 — Réaliser la collecte, le stockage et la mise à disposition des données d'un projet en IA
+PPMT collecte les offres d'emploi d'Île-de-France (France Travail + Adzuna), les nettoie, les stocke dans une base SQLite normalisée, calcule un indice de tension par code ROME, puis les expose par une **API REST sécurisée** (FastAPI) et un **dashboard** (Streamlit). Un modèle de Machine Learning (XGBoost) repère les métiers en tension.
 
----
+## Chiffres de la version V2 (collecte du 6 octobre 2026)
 
-## 1. Le service
+| Indicateur | Valeur |
+|---|---|
+| Offres en base | 62 435 (France Travail 58 301 · Adzuna 4 134) |
+| Codes ROME | 1 514 |
+| Métiers « très en tension » | 235 (≈ 75 % des offres rattachées à un code ROME) |
+| Collecte France Travail | 63 173 offres sur 63 504 annoncées (99,5 %), 492 appels, environ 6 min 40 s |
+| Tests automatisés | 57 tests pytest réussis |
+| Modèle ML (XGBoost, 717 métiers) | ROC-AUC 0,886 · F1 0,785 · précision équilibrée 0,804 |
 
-PPMT repère les métiers qui recrutent le plus en Île-de-France en croisant les offres **France Travail** (API officielle OAuth2) et **Adzuna** (agrégateur). Les données sont collectées, nettoyées, stockées en base SQLite, puis mises à disposition par une **API REST sécurisée** et un **dashboard Streamlit**.
+## Démonstration
 
-**Problématique** : comment identifier automatiquement les métiers en tension de recrutement en Île-de-France pour mieux orienter candidats, recruteurs et organismes de formation ?
+- **Choix 1 (principal) : en local**, sur la base figée du 6 octobre 2026 (voir « Lancement rapide »).
+- **Choix 2 (secours) : en ligne** — https://ppmt-claire.streamlit.app (même base figée, branche `demo-cloud` du dépôt).
 
-## 2. Architecture
+La base est figée volontairement pour la soutenance : les chiffres des documents correspondent à une collecte précise, et une nouvelle collecte donnerait d'autres valeurs.
 
-```
-C1 Collecte            C2/C3 Préparation        C4 Stockage                 C5 Mise à disposition
-─────────────────      ───────────────────      ─────────────────────       ──────────────────────
-API France Travail  →  src/prepare.py        →  src/store.py            →   api/main.py (FastAPI)
-API Adzuna             dédoublonnage            SQLite data/ppmt.db          7 endpoints · X-API-Key
-Contours + communes    salaires (médianes) ·      4 tables · FK · index        Swagger /docs
-src/collect.py         départements · RGPD      agrégation SQL (ITM)     →   webapp/app.py (Streamlit)
-                       run_pipeline.py orchestre C1 → C4 · tests/ (pytest)
-```
-
-## 3. Installation et lancement
+## Lancement rapide
 
 ```bash
 git clone https://github.com/Clairelucie/PPMT.git && cd PPMT
 pip install -r requirements.txt
-cp .env.example .env            # renseigner les clés France Travail et Adzuna
-
-python run_pipeline.py --collect   # C1 → C4 (sans --collect : repart des CSV versionnés)
-pytest tests/ -v                   # 57 tests
-uvicorn api.main:app --reload      # API → http://localhost:8000/docs
-streamlit run webapp/app.py        # dashboard → http://localhost:8501
+cp .env.example .env                 # renseigner les identifiants France Travail et Adzuna
 ```
 
-Planification quotidienne : `0 7 * * * cd ~/PPMT && python3 run_pipeline.py --collect >> logs/cron.log 2>&1`
+### Option A — partir de la base d'octobre (recommandé pour la démonstration)
 
-## 4. Structure
+Récupérer l'archive `data_ppmt_octobre.zip` (base `ppmt.db`, résultats ML, modèles), la décompresser dans un dossier temporaire, puis copier les fichiers :
+
+```bash
+python3 -m zipfile -e data_ppmt_octobre.zip /tmp/oct
+cp /tmp/oct/ppmt.db /tmp/oct/ml_resultats.json /tmp/oct/predictions_tension.csv data/
+cp /tmp/oct/models/* webapp/models/
+python3 -c "import sqlite3; print(sqlite3.connect('data/ppmt.db').execute('select count(*) from offres').fetchone())"   # (62435,)
+```
+
+### Option B — refaire la chaîne complète
+
+```bash
+python run_pipeline.py --collect     # C1 → C4 : collecte, préparation, stockage (environ 7 min de collecte)
+python notebook/ml_tests.py          # résultats ML + modèle de tension
+```
+
+> La collecte dépend des clés API et du réseau, et elle produit d'autres chiffres que ceux du dossier de soutenance.
+
+### Lancer les services
+
+```bash
+pytest tests/ -v                          # 57 tests
+export PPMT_API_KEY=ppmt-demo-2026        # clé de démonstration
+uvicorn api.main:app --reload             # API       → http://localhost:8000/docs
+streamlit run webapp/app.py               # dashboard → http://localhost:8501
+```
+
+## API
+
+Toutes les routes sont en lecture seule (GET) et protégées par l'en-tête `X-API-Key`, sauf `/health`.
+
+| Route | Rôle |
+|---|---|
+| `GET /health` | état du service et nombre d'offres (public) |
+| `GET /offres` | liste paginée et filtrable des offres |
+| `GET /offres/{offre_id}` | détail d'une offre |
+| `GET /metiers` | indicateurs de tension par métier (tri décroissant) |
+| `GET /metiers/{code_rome}` | fiche métier : tension, départements, contrats |
+| `GET /stats/tension` | répartition des métiers par statut de tension |
+
+La documentation interactive est sur `/docs` (Swagger). Exemple :
+
+```bash
+curl -H "X-API-Key: ppmt-demo-2026" http://localhost:8000/metiers/K1304
+```
+
+Sécurité : clé API (403 sans clé), paramètres validés par Pydantic (422), SQL paramétré, `limit` ≤ 500, base ouverte en lecture seule, image Docker minimale avec clé injectée en secret.
+
+## Architecture
 
 ```
 PPMT/
 ├── src/
-│   ├── collect.py        C1 — API France Travail (OAuth2, pagination par département), API Adzuna, GeoJSON
-│   ├── prepare.py        C2/C3 — nettoyage, normalisation, dédoublonnage, pseudonymisation
-│   └── store.py          C4 — schéma SQLite, chargement, agrégation SQL, purge RGPD
-├── api/main.py           C5 — API REST FastAPI
-├── tests/test_pipeline.py  57 tests (collecte simulée, règles, base, API)
-├── run_pipeline.py       orchestrateur
-├── notebook/ml_tests.py  expérimentation ML (hors BC01)
-├── webapp/app.py         dashboard Streamlit — lit uniquement data/ppmt.db et les sorties du modèle V2
-├── sources/              scripts de la V1 (historique)
-├── data/ref/             departements_idf.geojson (contours) · communes_idf.csv (1 276 communes) — versionnés
-├── docs/                 dictionnaire.md · rgpd.md · soutenance/ (dossier, présentation et fiche V1→V2 ; v1/ = archives)
-└── Dockerfile            image de l'API
+│   ├── collect.py     C1 — API France Travail (cascade), API Adzuna, contours et communes IDF
+│   ├── prepare.py     C2/C3 — nettoyage, normalisation, dédoublonnage, RGPD
+│   └── store.py       C4 — schéma SQLite, chargement, agrégation SQL, purge
+├── api/main.py        C5 — API REST FastAPI
+├── tests/             57 tests pytest
+├── run_pipeline.py    orchestrateur C1 → C4
+├── webapp/app.py      dashboard Streamlit (lit data/ppmt.db)
+├── notebook/ml_tests.py   expérimentation ML (V2)
+├── docs/              dictionnaire de données, registre RGPD
+└── Dockerfile         image de l'API
 ```
 
-### Fichiers V1 conservés pour l’historique (non utilisés par la V2)
+### Collecte France Travail en cascade
 
-| Fichier | Rôle en V1 | En V2 |
+L'API France Travail ne renvoie pas plus de 3 150 offres par requête. La collecte découpe donc par département, puis par fenêtres de dates de création (365 jours divisés par deux jusqu'à 1 heure), puis par type de contrat, jusqu'à ce que chaque requête passe sous le plafond. Résultat : 99,5 % des offres, contre 38 % avec la version de mai.
+
+### Adzuna
+
+L'API annonce 220 238 offres ; le script lit au maximum 250 pages de 50 offres (12 500) : c'est un **échantillon**. Les codes ROME sont rattachés par l'intitulé, puis par la catégorie Adzuna, puis restent vides s'il n'y a pas de correspondance.
+
+## Machine Learning
+
+La première version (V1) annonçait un R² de 0,995, dû à une **fuite de données** : la cible était calculée à partir des variables d'entrée. La V2 reformule le problème en classification « métier en tension » (717 métiers d'au moins 10 offres), avec validation croisée :
+
+| Modèle | ROC-AUC | F1 |
 |---|---|---|
-| `sources/*.py` (autres scripts) | collecte, nettoyage France Travail et base V1 | remplacés par `src/collect.py`, `src/prepare.py`, `src/store.py` |
-| `sources/clean_adzuna.py` | nettoyage Adzuna V1 (partie de Bernard) | règles reprises dans `src/prepare.py` |
-| `data/database.db` | base V1 (non versionnée) | remplacée par `data/ppmt.db` |
-| `data/itm_consolide.csv` | indicateurs V1 (pandas) | remplacé par la table `indicateurs_tension` (SQL) |
-| `data/predictions_itm.csv`, `webapp/models/modele_itm.pkl`, `scaler_itm.pkl` | modèle V1 (fuite de données) | remplacés par `data/predictions_tension.csv` et `modele_tension.pkl` (XGBoost) |
+| Hasard | 0,51 | — |
+| Régression logistique | 0,61 | 0,56 |
+| Random Forest | 0,87 | 0,76 |
+| **XGBoost (retenu)** | **0,89** | **0,79** |
 
-`data/offres_idf_clean.csv` et `data/offres_ft_idf_clean.csv` restent utilisés : ce sont les entrées de `src/prepare.py` quand les fichiers bruts du jour (`data/offres_idf.csv`, `data/offres_ft_idf.csv`) sont absents.
+## Limites connues
 
-## 4 bis. Préparation — méthodes retenues
+- Adzuna n'est lu qu'en échantillon (12 500 offres sur 220 238).
+- L'indice mesure uniquement la demande des employeurs, pas le nombre de demandeurs d'emploi.
+- La collecte n'est pas planifiée automatiquement (lancement à la demande ; cron puis Airflow prévus).
+- La cascade de collecte et la table de correspondance ROME d'Adzuna n'ont pas de test unitaire dédié.
+- Une seule collecte complète : pas d'historique, donc pas de prévision.
 
-| Problème | Méthode |
-|---|---|
-| Salaires non affichés (64 %) | Médiane des salaires affichés : métier × département → métier → domaine ROME → département → région ; `salaire_impute`, `salaire_source` |
-| Codes ROME Adzuna | Intitulé identique à des offres France Travail, sinon catégorie Adzuna ; fourre-tout M1607 écarté |
-| Lieux sans département | Référentiel des 1 276 communes d'Île-de-France |
-| Doublons | URL puis titre + entreprise + lieu, entre les deux sources |
+## Équipe
 
-## 5. Base de données (`data/ppmt.db`)
+- **Claire Lucie DIOUF** — collecte France Travail (OAuth2, cascade), dashboard Streamlit, Machine Learning, administration du dépôt Git, refonte V2 (collecte, préparation, stockage, API, tests, RGPD, correction du ML).
+- **Bernard GBOHOUGNON** — collecte et nettoyage Adzuna (V1) ; logs et idempotence du pipeline (V2).
 
-| Table | Lignes | Clé | Rôle |
-|---|---|---|---|
-| `departements` | 8 | `code_dept` | référentiel des 8 départements : centre géographique et superficie calculés depuis le GeoJSON |
-| `metiers_rome` | 1 100 | `code_rome` | référentiel ROME (libellé officiel France Travail) |
-| `offres` | 28 219 | `id`, `hash_offre` UNIQUE | une ligne par offre, FK vers les deux référentiels |
-| `indicateurs_tension` | 1 100 | `code_rome` | agrégats par métier calculés en SQL |
-
-**Indice de tension (ITM)** = nombre d'offres du métier ÷ nombre moyen d'offres par métier × 100 (100 = métier moyen).
-Statuts : SATURÉ < 50 · ÉQUILIBRÉ 50–100 · EN TENSION 100–150 · TRÈS EN TENSION > 150.
-L'ITM mesure la pression de la demande des employeurs (côté offres) ; PPMT ne dispose pas du nombre de candidats.
-
-## 6. API
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| GET | `/health` | disponibilité (public) |
-| GET | `/offres` | liste paginée — filtres `departement`, `code_rome`, `source`, `contrat`, `q` |
-| GET | `/offres/{id}` | détail d'une offre |
-| GET | `/metiers` | indicateurs de tension, tri décroissant, filtre `statut` |
-| GET | `/metiers/{code_rome}` | fiche métier : répartition par département et par contrat |
-| GET | `/stats/departements` | volume, densité (offres / 100 km²), part de CDI, salaire moyen, coordonnées |
-| GET | `/stats/tension` | nombre de métiers et d'offres par statut |
-
-```bash
-curl -H "X-API-Key: $PPMT_API_KEY" "http://localhost:8000/metiers?statut=TRES%20EN%20TENSION&limit=5"
-```
-
-## 7. Machine Learning (expérimentation, hors BC01)
-
-- **V1** (régression de l'ITM à partir des volumes d'offres, R² = 0,995) **écartée** : l'ITM est calculé à partir de ces volumes → fuite de données.
-- **V2** : classification « en tension » à partir du **profil** des offres (contrats, salaires, expérience, famille ROME), sans variable de volume, sur 446 métiers ayant au moins 10 offres. Validation croisée à 5 plis, trois modèles comparés : régression logistique (AUC 0,58), Random Forest (AUC 0,82), **XGBoost retenu (AUC 0,84 · F1 0,77)**. Un classement au hasard donne 0,5.
-- Prochaine étape : croiser avec le nombre de demandeurs d'emploi par code ROME et accumuler des collectes quotidiennes pour une vraie prévision à 3 mois.
-
-## 8. RGPD
-
-Aucune donnée de candidat. E-mails et téléphones masqués avant stockage, conservation 12 mois glissants, API en lecture seule. Registre : [`docs/rgpd.md`](docs/rgpd.md).
-
-## 9. Organisation
-
-| Membre | Contributions |
-|---|---|
-| Claire DIOUF | V1 : collecte France Travail (OAuth2), dashboard, ML · V2 : refonte collect / prepare / store en modules testables, API FastAPI, tests, correction du ML |
-| Bernard GBOHOUGNON | V1 : collecte et nettoyage Adzuna, mapping catégories → ROME, administration Git · V2 : journalisation (logs) et idempotence du pipeline |
-
-*Formation Développeur en IA — RNCP37827BC01 — Artefact — 2026*
+Les données sont des offres d'emploi publiques. Les données personnelles éventuelles (e-mails, téléphones) sont pseudonymisées ou supprimées avant stockage ; voir `docs/rgpd.md`.
