@@ -189,6 +189,7 @@ NB_METIERS = len(df_itm)
 NB_TRES = int((df_itm["statut"] == "TRES EN TENSION").sum())
 ROMES_TRES = set(df_itm.loc[df_itm["statut"] == "TRES EN TENSION", "code_rome"])
 NB_OFFRES_TRES = int(df_az["code_rome"].isin(ROMES_TRES).sum() + df_ft["code_rome"].isin(ROMES_TRES).sum())
+AUC_ML = ml.get("v2", {}).get("resultats_cv5", {}).get("XGBoost", {}).get("roc_auc", 0.885)
 
 df_az["source"] = "Adzuna"
 df_ft["source"] = "France Travail"
@@ -221,12 +222,12 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("""
+    st.markdown(f"""
     <div style="font-size:0.75rem;color:#718096;line-height:1.9">
     <b>Sources</b><br>Adzuna API · France Travail API<br><br>
     <b>Base</b><br>data/ppmt.db (pipeline V2)<br><br>
     <b>Perimetre</b><br>Ile-de-France (8 depts)<br><br>
-    <b>Modele ML (experimental)</b><br>XGBoost · AUC 0,84
+    <b>Modele ML (experimental)</b><br>XGBoost · AUC {str(round(AUC_ML, 2)).replace('.', ',')}
     </div>
     """, unsafe_allow_html=True)
 
@@ -251,7 +252,7 @@ st.markdown(f"""
 <h2 style="margin:0 0 6px 0;font-size:1.55rem">Plateforme Predictive des Metiers en Tension — IDF</h2>
 <p style="margin:0;opacity:0.92;font-size:0.92rem">
 PPMT identifie les metiers en tension en Ile-de-France a partir des donnees <b>Adzuna</b> et <b>France Travail</b>.
-L'indice de tension (ITM) compare le volume d'offres de chaque metier (code ROME) a la moyenne : 100 = metier moyen. Un modele ML experimental (XGBoost, AUC {ml.get('v2',{}).get('modeles',{}).get('XGBoost',{}).get('roc_auc',0.84):.2f}) repere les metiers en tension a partir du profil de leurs offres.
+L'indice de tension (ITM) compare le volume d'offres de chaque metier (code ROME) a la moyenne : 100 = metier moyen. Un modele ML experimental (XGBoost, AUC {ml.get('v2',{}).get('resultats_cv5',{}).get('XGBoost',{}).get('roc_auc',0.885):.2f}) repere les metiers en tension a partir du profil de leurs offres.
 Utilisez les filtres a gauche pour explorer par departement, contrat ou secteur.
 </p>
 <div style="margin-top:12px">
@@ -606,7 +607,7 @@ with tab5:
     st.subheader("Metiers en Tension — Etat actuel et Predictions")
 
     _xgb = ml.get("v2", {}).get("resultats_cv5", {}).get("XGBoost", {})
-    AUC, F1 = _xgb.get("roc_auc", 0.84), _xgb.get("f1", 0.77)
+    AUC, F1 = _xgb.get("roc_auc", 0.885), _xgb.get("f1", 0.785)
     NB_ML = ml.get("v2", {}).get("nb_metiers", len(df_pred))
     m1,m2,m3,m4 = st.columns(4)
     with m1:
