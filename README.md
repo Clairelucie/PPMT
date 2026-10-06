@@ -1,6 +1,6 @@
 # PPMT — Plateforme Prédictive des Métiers en Tension (Île-de-France)
 
-Projet RNCP37827BC01 — Claire Lucie DIOUF — soutenance du 15 octobre 2026.
+Projet RNCP37827BC01 — Claire Lucie DIOUF — soutenance du 16 octobre 2026.
 
 PPMT collecte les offres d'emploi d'Île-de-France (France Travail + Adzuna), les nettoie, les stocke dans une base SQLite normalisée, calcule un indice de tension par code ROME, puis les expose par une **API REST sécurisée** (FastAPI) et un **dashboard** (Streamlit). Un modèle de Machine Learning (XGBoost) repère les métiers en tension.
 

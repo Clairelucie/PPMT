@@ -1,6 +1,6 @@
 # Dictionnaire des données — PPMT (V2, collecte du 6 octobre 2026)
 
-Projet RNCP37827BC01 — soutenance du 15 octobre 2026. Équipe : Claire Lucie DIOUF, Bernard GBOHOUGNON.
+Projet RNCP37827BC01 — soutenance du 16 octobre 2026. Équipe : Claire Lucie DIOUF, Bernard GBOHOUGNON.
 
 Ce dictionnaire décrit la **base SQLite `data/ppmt.db`** produite par `run_pipeline.py` (C1 → C4), puis les fichiers de sortie du Machine Learning. Il remplace la version de mai 2026 (V1), qui décrivait des fichiers CSV séparés (4 626 offres Adzuna, 24 051 offres France Travail, 1 102 métiers).
 
