@@ -42,3 +42,7 @@ Thumbs.db# Garder les fichiers clean pour Streamlit Cloud
 logs/
 data/raw/
 data/processed/
+*.bak_*
+patch_*.py
+fix_guards.sh
+data_ppmt_octobre.zip
