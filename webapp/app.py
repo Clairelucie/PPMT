@@ -339,30 +339,40 @@ with tab1:
             st.plotly_chart(fig2, width="stretch")
 
     st.divider()
-    st.subheader("Offres publiees en mai 2026 — Adzuna vs France Travail")
-    df_az_mai = df_az[(df_az["date_publication"].dt.year==2026)&(df_az["date_publication"].dt.month==5)] if "date_publication" in df_az.columns else pd.DataFrame()
-    df_ft_mai = df_ft[(df_ft["date_publication"].dt.year==2026)&(df_ft["date_publication"].dt.month==5)] if "date_publication" in df_ft.columns else pd.DataFrame()
+        st.subheader("Offres publiees — Adzuna vs France Travail")
+    MOIS_FR = ["janvier","fevrier","mars","avril","mai","juin","juillet","aout","septembre","octobre","novembre","decembre"]
+    _series = [d["date_publication"] for d in (df_az, df_ft) if "date_publication" in d.columns]
+    _mois_dispo = sorted(pd.concat(_series, ignore_index=True).dropna().dt.strftime("%Y-%m").unique(), reverse=True)[:12] if _series else []
+    if _mois_dispo:
+        _mois_sel = st.selectbox("Mois de publication", _mois_dispo, index=0,
+            format_func=lambda m: f"{MOIS_FR[int(m[5:7])-1]} {m[:4]}", key="mois_pub_compare")
+        _annee, _mois = int(_mois_sel[:4]), int(_mois_sel[5:7])
+        lib_mois = f"{MOIS_FR[_mois-1]} {_annee}"
+    else:
+        _annee, _mois, lib_mois = 0, 0, "-"
+    df_az_mois = df_az[(df_az["date_publication"].dt.year==_annee)&(df_az["date_publication"].dt.month==_mois)] if "date_publication" in df_az.columns else pd.DataFrame()
+    df_ft_mois = df_ft[(df_ft["date_publication"].dt.year==_annee)&(df_ft["date_publication"].dt.month==_mois)] if "date_publication" in df_ft.columns else pd.DataFrame()
 
-    st.markdown(f'<div class="section-note">Offres publiees en mai 2026 (periode de collecte principale), apres dedoublonnage. Adzuna : {len(df_az_mai):,} offres · France Travail : {len(df_ft_mai):,} offres</div>', unsafe_allow_html=True)
-    if len(df_az_mai)>0 or len(df_ft_mai)>0:
+    st.markdown(f'<div class="section-note">Offres publiees en {lib_mois}, apres dedoublonnage. Adzuna : {len(df_az_mois):,} offres · France Travail : {len(df_ft_mois):,} offres. Les API ne renvoient que les offres encore actives a la date de collecte.</div>', unsafe_allow_html=True)
+    if len(df_az_mois)>0 or len(df_ft_mois)>0:
         col_a, col_b = st.columns(2)
         with col_a:
-            st.markdown("**Adzuna — Mai 2026 par domaine ROME**")
-            if len(df_az_mai)>0 and "categorie" in df_az_mai.columns:
-                df_cat_mai = df_az_mai.groupby("categorie").size().reset_index(name="nb")
-                df_cat_mai = df_cat_mai[~df_cat_mai["categorie"].isin(["Unknown","","Non classe"])].sort_values("nb",ascending=True).tail(12)
-                fig_mai = px.bar(df_cat_mai, x="nb", y="categorie", orientation="h",
+            st.markdown(f"**Adzuna — {lib_mois.capitalize()} par domaine ROME**")
+            if len(df_az_mois)>0 and "categorie" in df_az_mois.columns:
+                df_cat_mois = df_az_mois.groupby("categorie").size().reset_index(name="nb")
+                df_cat_mois = df_cat_mois[~df_cat_mois["categorie"].isin(["Unknown","","Non classe"])].sort_values("nb",ascending=True).tail(12)
+                fig_mois = px.bar(df_cat_mois, x="nb", y="categorie", orientation="h",
                     color="nb", color_continuous_scale=["#EBF8FF","#003189"], text="nb")
-                fig_mai.update_traces(textposition="outside")
-                fig_mai.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
+                fig_mois.update_traces(textposition="outside")
+                fig_mois.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
                     xaxis_title="Offres", yaxis_title="")
-                st.plotly_chart(fig_mai, width="stretch")
+                st.plotly_chart(fig_mois, width="stretch")
         with col_b:
-            st.markdown("**France Travail — Mai 2026 par departement**")
-            if len(df_ft_mai)>0 and "departement" in df_ft_mai.columns:
-                df_dept_mai = df_ft_mai.groupby("departement").size().reset_index(name="nb")
-                df_dept_mai = df_dept_mai[df_dept_mai["departement"].notna()].sort_values("nb",ascending=True)
-                fig_dept = px.bar(df_dept_mai, x="nb", y="departement", orientation="h",
+            st.markdown(f"**France Travail — {lib_mois.capitalize()} par departement**")
+            if len(df_ft_mois)>0 and "departement" in df_ft_mois.columns:
+                df_dept_mois = df_ft_mois.groupby("departement").size().reset_index(name="nb")
+                df_dept_mois = df_dept_mois[df_dept_mois["departement"].notna()].sort_values("nb",ascending=True)
+                fig_dept = px.bar(df_dept_mois, x="nb", y="departement", orientation="h",
                     color="nb", color_continuous_scale=["#FFF5F5","#C53030"], text="nb")
                 fig_dept.update_traces(textposition="outside")
                 fig_dept.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
