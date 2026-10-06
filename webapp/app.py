@@ -213,13 +213,7 @@ with st.sidebar:
     filtre_secteur = st.selectbox("Secteur", secteurs)
 
     st.markdown("---")
-    if st.button("Rafraichir les donnees", type="primary", use_container_width=True):
-        with st.spinner("Mise a jour en cours..."):
-            subprocess.run(["python3", str(ROOT / "run_pipeline.py")], cwd=ROOT)   # C1 → C4 (V2)
-            subprocess.run(["python3", str(ROOT / "notebook" / "ml_tests.py")], cwd=ROOT)
-            st.cache_data.clear()
-        st.success("Donnees mises a jour !")
-        st.rerun()
+    st.caption("Base figée pour la soutenance (collecte du 6 octobre 2026)")
 
     st.markdown("---")
     st.markdown(f"""
