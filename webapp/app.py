@@ -339,7 +339,7 @@ with tab1:
             st.plotly_chart(fig2, width="stretch")
 
     st.divider()
-        st.subheader("Offres publiees — Adzuna vs France Travail")
+    st.subheader("Offres publiees — Adzuna vs France Travail")
     MOIS_FR = ["janvier","fevrier","mars","avril","mai","juin","juillet","aout","septembre","octobre","novembre","decembre"]
     _series = [d["date_publication"] for d in (df_az, df_ft) if "date_publication" in d.columns]
     _mois_dispo = sorted(pd.concat(_series, ignore_index=True).dropna().dt.strftime("%Y-%m").unique(), reverse=True)[:12] if _series else []
