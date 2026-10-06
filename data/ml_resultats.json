@@ -1,0 +1,40 @@
+{
+  "v1_fuite": {
+    "r2_regression_lineaire": 1.0,
+    "r2_random_forest": 0.9999
+  },
+  "v2": {
+    "nb_metiers": 717,
+    "seuil_offres": 10,
+    "part_en_tension": 0.459,
+    "resultats_cv5": {
+      "Régression logistique": {
+        "roc_auc": 0.611,
+        "f1": 0.558,
+        "balanced_accuracy": 0.561
+      },
+      "Random Forest": {
+        "roc_auc": 0.874,
+        "f1": 0.761,
+        "balanced_accuracy": 0.783
+      },
+      "XGBoost": {
+        "roc_auc": 0.886,
+        "f1": 0.785,
+        "balanced_accuracy": 0.804
+      }
+    },
+    "auc_reference_hasard": 0.507,
+    "modele_retenu": "XGBoost",
+    "top_variables": {
+      "longueur_description": 0.16699999570846558,
+      "part_interim": 0.0860000029206276,
+      "part_cdd": 0.0729999989271164,
+      "part_debutant": 0.057999998331069946,
+      "famille_rome_C": 0.05400000140070915,
+      "part_cdi": 0.052000001072883606,
+      "famille_rome_K": 0.0430000014603138,
+      "famille_rome_J": 0.041999999433755875
+    }
+  }
+}
