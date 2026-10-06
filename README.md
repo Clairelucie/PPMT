@@ -13,7 +13,7 @@ PPMT collecte les offres d'emploi d'Île-de-France (France Travail + Adzuna), le
 | Métiers « très en tension » | 235 (≈ 75 % des offres rattachées à un code ROME) |
 | Collecte France Travail | 63 173 offres sur 63 504 annoncées (99,5 %), 492 appels, environ 6 min 40 s |
 | Tests automatisés | 57 tests pytest réussis |
-| Modèle ML (XGBoost, 717 métiers) | ROC-AUC 0,886 · F1 0,785 · précision équilibrée 0,804 |
+| Modèle ML (XGBoost, 717 métiers) | ROC-AUC 0,886 · F1 0,785 · exactitude équilibrée 0,804 |
 
 ## Démonstration
 
@@ -61,7 +61,7 @@ streamlit run webapp/app.py               # dashboard → http://localhost:8501
 
 ## API
 
-Toutes les routes sont en lecture seule (GET) et protégées par l'en-tête `X-API-Key`, sauf `/health`.
+Les 7 routes sont en lecture seule (GET) et protégées par l'en-tête `X-API-Key`, sauf `/health`.
 
 | Route | Rôle |
 |---|---|
@@ -71,6 +71,7 @@ Toutes les routes sont en lecture seule (GET) et protégées par l'en-tête `X-A
 | `GET /metiers` | indicateurs de tension par métier (tri décroissant) |
 | `GET /metiers/{code_rome}` | fiche métier : tension, départements, contrats |
 | `GET /stats/tension` | répartition des métiers par statut de tension |
+| `GET /stats/departements` | offres et indicateurs par département |
 
 La documentation interactive est sur `/docs` (Swagger). Exemple :
 
@@ -126,7 +127,7 @@ La première version (V1) annonçait un R² de 0,995, dû à une **fuite de donn
 
 ## Équipe
 
-- **Claire Lucie DIOUF** — collecte France Travail (OAuth2, cascade), dashboard Streamlit, Machine Learning, administration du dépôt Git, refonte V2 (collecte, préparation, stockage, API, tests, RGPD, correction du ML).
-- **Bernard GBOHOUGNON** — collecte et nettoyage Adzuna (V1) ; logs et idempotence du pipeline (V2).
+- **Claire Lucie DIOUF** — V1 : collecte France Travail (OAuth2), dashboard Streamlit, Machine Learning. V2 : cascade France Travail, stockage, API, tests, RGPD, correction du ML, gestion du dépôt Git (branches, commits) et déploiement du dashboard.
+- **Bernard GBOHOUGNON** — V1 : collecte et nettoyage Adzuna, administration du dépôt Git (droits, branches, protection de `main`). V2 : collecte et nettoyage Adzuna, idempotence du pipeline (journaux, relance sans doublon).
 
 Les données sont des offres d'emploi publiques. Les données personnelles éventuelles (e-mails, téléphones) sont pseudonymisées ou supprimées avant stockage ; voir `docs/rgpd.md`.

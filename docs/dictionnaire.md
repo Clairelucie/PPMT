@@ -30,7 +30,7 @@ Une ligne par offre d'emploi, sources France Travail et Adzuna projetées sur un
 | salaire_min | réel | Salaire minimum annuel brut (€) | Entre 10 000 et 300 000 (CHECK) | Heures × 1 820, mois × 12 ; bornes inversées permutées |
 | salaire_max | réel | Salaire maximum annuel brut (€) | Entre 10 000 et 300 000 (CHECK) | Idem |
 | salaire_moyen | réel | Moyenne de salaire_min et salaire_max, ou salaire complété | — | 100 % des offres ont un salaire |
-| salaire_impute | entier | 1 si le salaire a été complété, 0 s'il est affiché | 0 ou 1 (CHECK) | 35 000 offres environ complétées |
+| salaire_impute | entier | 1 si le salaire a été complété, 0 s'il est affiché | 0 ou 1 (CHECK) | 34 997 offres complétées |
 | salaire_source | texte | Origine du salaire | `affiché`, `médiane métier × département`, `médiane métier`, `médiane domaine`, `médiane département`, `médiane régionale` | Affiché : 27 438 · métier × département : 24 635 · métier : 6 638 · domaine : 2 035 · département : 1 679 · région : 10 |
 | rome_source | texte | Origine du code ROME | `france_travail`, `intitule`, `categorie` (CHECK), vide si aucun code | France Travail 58 301 · Adzuna par intitulé 636 · par catégorie 1 388 · sans code 2 110 |
 | date_publication | texte | Date de création de l'offre | ISO 8601 | Fenêtre de 12 mois (9 octobre 2025 → 6 octobre 2026) |
@@ -114,7 +114,7 @@ Les 235 métiers « très en tension » concentrent 45 044 des 60 325 offres rat
 
 Résultats de la validation croisée à 5 plis sur 717 métiers (46 % en tension) :
 
-| Modèle | ROC-AUC | F1 | Précision équilibrée |
+| Modèle | ROC-AUC | F1 | Exactitude équilibrée |
 |---|---|---|---|
 | Référence (hasard) | 0,507 | — | — |
 | Régression logistique | 0,611 | 0,558 | 0,561 |
