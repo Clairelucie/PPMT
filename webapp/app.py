@@ -197,7 +197,6 @@ df_all = pd.concat([df_az, df_ft], ignore_index=True)
 
 # ─── SIDEBAR ─────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/115px-Python-logo-notext.svg.png", width=40)
     st.markdown("## PPMT")
     st.markdown("*Metiers en Tension IDF*")
     st.markdown("---")
