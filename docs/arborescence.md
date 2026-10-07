@@ -48,7 +48,8 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 ├── run_pipeline.py            # Orchestrateur C1 → C4 (python run_pipeline.py --collect)
 ├── Dockerfile                 # Image de l'API
 ├── .env.example               # Noms des variables d'environnement (jamais de valeurs)
-├── .gitignore                 # Ignore .env, data/raw/, environnements Python
+├── .gitignore                 # Ignore .env, data/raw/, _archive/, caches Python et pytest, .vscode/
+├── pytest.ini                 # Réglages de pytest : dossier des tests, cache rangé dans zz_pytest_cache/
 ├── requirements.txt           # Outils Python à installer (pip install -r requirements.txt)
 └── README.md                  # Page d'accueil GitHub : notice, Issue Tree, dictionnaire de données
 ```
@@ -129,6 +130,9 @@ test_pipeline.py : 57 tests pytest. 4 pour la collecte (API simulées), 31 pour 
 
 
 README.md : la notice du projet : problème, Issue Tree, arborescence, dictionnaire de données, lancement, API, limites.
+
+
+pytest.ini : les réglages de pytest, l'outil qui lance les 57 tests. Il indique où sont les tests (tests/) et range le cache de pytest dans zz_pytest_cache/, un dossier ignoré par Git qui s'affiche en bas de l'explorateur. Il suffit alors de taper pytest -q.
 
 
 requirements.txt : la liste des outils Python. Une seule commande (pip install -r requirements.txt) installe les mêmes versions chez tout le monde.

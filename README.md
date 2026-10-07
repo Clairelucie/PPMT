@@ -103,7 +103,8 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 ├── run_pipeline.py            # Orchestrateur C1 → C4 (python run_pipeline.py --collect)
 ├── Dockerfile                 # Image de l'API
 ├── .env.example               # Noms des variables d'environnement (jamais de valeurs)
-├── .gitignore                 # Ignore .env, data/raw/, environnements Python
+├── .gitignore                 # Ignore .env, data/raw/, _archive/, caches Python et pytest, .vscode/
+├── pytest.ini                 # Réglages de pytest : dossier des tests, cache rangé dans zz_pytest_cache/
 ├── requirements.txt           # Outils Python à installer (pip install -r requirements.txt)
 └── README.md                  # Page d'accueil GitHub : notice, Issue Tree, dictionnaire de données
 ```
