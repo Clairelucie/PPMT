@@ -39,7 +39,7 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 │   └── test_pipeline.py       # 57 tests pytest (collecte simulée, règles, base, API)
 │
 ├── docs/
-│   ├── soutenance/            # Documents de la soutenance du 16 octobre : dossier (Word, PDF), diaporama, fiche technique V1/V2
+│   ├── soutenance/            # Documents de la soutenance du 16 octobre : dossier (Word, PDF) et diaporama
 │   ├── dictionnaire.md        # Dictionnaire de données
 │   ├── rgpd.md                # Registre des traitements RGPD
 │   ├── arborescence.md        # Ce plan commenté
@@ -133,7 +133,7 @@ test_pipeline.py : 57 tests pytest. 4 pour la collecte (API simulées), 31 pour 
 ### 8. Le dossier docs/ : la documentation
 
 
-dictionnaire.md (les données), rgpd.md (les traitements), arborescence.md (ce plan), issue_tree.md et le classeur PPMT_Arborescence_Issue_Tree_V2.xlsx. Le sous-dossier soutenance/ contient les documents de la soutenance du 16 octobre : dossier (Word et PDF), diaporama et fiche technique V1/V2. Les documents de la V1 ont été rangés hors du dépôt, dans _archive/.
+dictionnaire.md (les données), rgpd.md (les traitements), arborescence.md (ce plan), issue_tree.md et le classeur PPMT_Arborescence_Issue_Tree_V2.xlsx. Le sous-dossier soutenance/ contient les documents de la soutenance du 16 octobre : dossier (Word et PDF) et diaporama. Les documents de la V1 ont été rangés hors du dépôt, dans _archive/.
 
 
 ### 9. Les fichiers à la racine (les indispensables de gestion)

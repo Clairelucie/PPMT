@@ -94,7 +94,7 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 │   └── test_pipeline.py       # 57 tests pytest (collecte simulée, règles, base, API)
 │
 ├── docs/
-│   ├── soutenance/            # Documents de la soutenance du 16 octobre : dossier (Word, PDF), diaporama, fiche technique V1/V2
+│   ├── soutenance/            # Documents de la soutenance du 16 octobre : dossier (Word, PDF) et diaporama
 │   ├── dictionnaire.md        # Dictionnaire de données
 │   ├── rgpd.md                # Registre des traitements RGPD
 │   ├── arborescence.md        # Ce plan commenté
@@ -237,7 +237,7 @@ Les données sont des offres d'emploi publiques. Les données personnelles éven
 
 | Fichier | Contenu |
 |---|---|
-| `soutenance/` | Documents de la soutenance du 16 octobre : dossier (Word, PDF), diaporama, fiche technique V1/V2 |
+| `soutenance/` | Documents de la soutenance du 16 octobre : dossier (Word, PDF) et diaporama |
 | `dictionnaire.md` | Dictionnaire de données (tables, colonnes, règles) |
 | `rgpd.md` | Registre des traitements RGPD |
 | `arborescence.md` | Plan commenté du dépôt |
