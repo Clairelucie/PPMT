@@ -48,3 +48,4 @@ fix_guards.sh
 data_ppmt_octobre.zip
 _archive/
 .pytest_cache/
+.vscode/

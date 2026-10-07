@@ -131,4 +131,4 @@ Modèle XGBoost entraîné sur les 717 métiers. Les fichiers `modele_itm.pkl`, 
 
 ## 8. Fichiers de la V1 (historique)
 
-`itm_consolide.csv`, `predictions_itm.csv`, `offres_idf_clean.csv` et `offres_ft_idf_clean.csv` datent de la collecte de mai 2026 (24 051 offres France Travail, 4 626 offres Adzuna). La V2 ne les utilise plus : le dashboard et l'API lisent uniquement `data/ppmt.db`.
+`itm_consolide.csv` et `predictions_itm.csv` (V1) ont été retirés du dépôt : ils ne sont plus utilisés. `offres_idf_clean.csv` et `offres_ft_idf_clean.csv` datent de la collecte de mai 2026 (24 051 offres France Travail, 4 626 offres Adzuna) : ce sont des versions de secours, lues par `prepare.py` uniquement si les fichiers bruts sont absents. Le dashboard et l'API lisent uniquement `data/ppmt.db`.
