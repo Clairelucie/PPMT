@@ -9,6 +9,10 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 │   ├── raw/                   # Réponses brutes des API : france_travail_AAAAMMJJ.json, adzuna_AAAAMMJJ.json (1 par source et par jour)
 │   ├── ref/                   # Fichiers de référence : communes_idf.csv (1 276 communes), departements_idf.geojson (8 contours)
 │   ├── processed/             # offres_unifiees.csv : offres nettoyées et unifiées (63 242 lignes)
+│   ├── offres_ft_idf.csv      # France Travail aplati, produit par collect.py (entrée de prepare.py)
+│   ├── offres_idf.csv         # Adzuna aplati, produit par collect.py (entrée de prepare.py)
+│   ├── offres_ft_idf_clean.csv  # Version nettoyée de secours, versionnée dans Git (lue si les bruts sont absents)
+│   ├── offres_idf_clean.csv   # Idem pour Adzuna
 │   ├── ppmt.db                # Base SQLite : 62 435 offres, 1 514 métiers ROME (fournie par data_ppmt_octobre.zip)
 │   ├── ml_resultats.json      # Résultats du Machine Learning (AUC, F1, variables importantes)
 │   └── predictions_tension.csv# Prédictions « en tension » par métier
@@ -65,6 +69,9 @@ ref/ (référentiels) : les deux fichiers de référence téléchargés une fois
 
 
 processed/ (données nettoyées) : offres_unifiees.csv, produit par prepare.py : 63 242 offres des deux sources, après suppression de 12 404 doublons.
+
+
+offres_ft_idf.csv et offres_idf.csv : les offres aplaties (une ligne par offre) que collect.py écrit à partir des réponses brutes ; c'est l'entrée de prepare.py. offres_ft_idf_clean.csv et offres_idf_clean.csv sont des versions nettoyées de secours, versionnées dans Git : prepare.py les lit si les fichiers bruts sont absents.
 
 
 ppmt.db, ml_resultats.json, predictions_tension.csv : la base SQLite (62 435 offres) et les résultats du Machine Learning. Pour la soutenance, la base est figée au 6 octobre 2026 : elle est fournie par l'archive data_ppmt_octobre.zip.
