@@ -108,7 +108,7 @@ Les 235 métiers « très en tension » concentrent 45 044 des 60 325 offres rat
 | code_rome | texte | Code ROME |
 | statut | texte | Statut observé (voir § 5) |
 | indice_tension | réel | Indice de tension observé |
-| proba_tension | réel | Probabilité prédite par XGBoost que le métier soit « en tension » (entre 0 et 1) |
+| proba_tension | réel | Probabilité prédite par XGBoost que le métier soit « en tension » (entre 0 et 1), arrondie à 3 décimales ; calculée en validation croisée à 5 plis : le métier est prédit par un modèle qui ne l'a pas vu à l'entraînement |
 
 ### `data/ml_resultats.json`
 
@@ -122,6 +122,8 @@ Résultats de la validation croisée à 5 plis sur 717 métiers (46 % en tension
 | **XGBoost (retenu)** | **0,886** | **0,785** | **0,804** |
 
 Variables les plus importantes : longueur_description (0,167), part_interim (0,086), part_cdd (0,073), part_debutant (0,058), famille_rome_C (0,054), part_cdi (0,052).
+
+La cible est « indice de tension > 100 ». Les variables d'entrée décrivent le profil des offres de chaque métier (parts de CDI, CDD et intérim, salaire, part de salaires non affichés, expérience demandée, part d'offres pour débutants, longueur des descriptions, famille ROME), sans variable de volume. Sans `longueur_description`, l'AUC de XGBoost passe de 0,886 à 0,795 (Random Forest : 0,874 à 0,794).
 
 Le fichier contient aussi la trace de la **version V1** : régression linéaire R² = 1,0000 et Random Forest R² = 0,9999, car la cible était calculée à partir des variables d'entrée (fuite de données). Cette version est écartée.
 

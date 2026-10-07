@@ -39,6 +39,7 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 │   └── test_pipeline.py       # 57 tests pytest (collecte simulée, règles, base, API)
 │
 ├── docs/
+│   ├── soutenance/            # Documents de la soutenance du 16 octobre : dossier (Word, PDF), diaporama, fiche technique V1/V2
 │   ├── dictionnaire.md        # Dictionnaire de données
 │   ├── rgpd.md                # Registre des traitements RGPD
 │   ├── arborescence.md        # Ce plan commenté
@@ -93,6 +94,9 @@ Chaque collecte écrit un journal horodaté (collect_AAAAMMJJ_HHMMSS.log) : zone
 ml_tests.py : l'expérimentation Machine Learning de la V2. La V1 annonçait un R² de 0,995, dû à une fuite de données ; la V2 classe les 717 métiers d'au moins 10 offres en « en tension » ou non (XGBoost : AUC 0,886, F1 0,785). Hors du bloc BC01, c'est une ouverture.
 
 
+Comment sont construites les prédictions : la cible est « indice de tension > 100 » (46 % des 717 métiers) ; les variables d'entrée décrivent le profil des offres du métier (parts de CDI, CDD et intérim, salaire, part de salaires non affichés, expérience demandée, part d'offres pour débutants, longueur des descriptions, famille ROME), sans aucune variable de volume. Chaque probabilité de predictions_tension.csv (colonne proba_tension) est prédite en validation croisée à 5 plis : le métier est prédit par un modèle qui ne l'a pas vu à l'entraînement. Sans la longueur des descriptions, l'AUC de XGBoost passe de 0,886 à 0,795.
+
+
 ### 4. Le dossier src/ : les machines automatisées de l'usine
 
 
@@ -126,7 +130,13 @@ app.py : le dashboard Streamlit (6 onglets, filtres par département, contrat et
 test_pipeline.py : 57 tests pytest. 4 pour la collecte (API simulées), 31 pour les règles de préparation, 13 pour la base, 9 pour l'API. Limite connue : la cascade France Travail n'a pas encore de test unitaire dédié.
 
 
-### 8. Les fichiers à la racine (les indispensables de gestion)
+### 8. Le dossier docs/ : la documentation
+
+
+dictionnaire.md (les données), rgpd.md (les traitements), arborescence.md (ce plan), issue_tree.md et le classeur PPMT_Arborescence_Issue_Tree_V2.xlsx. Le sous-dossier soutenance/ contient les documents de la soutenance du 16 octobre : dossier (Word et PDF), diaporama et fiche technique V1/V2. Les documents de la V1 ont été rangés hors du dépôt, dans _archive/.
+
+
+### 9. Les fichiers à la racine (les indispensables de gestion)
 
 
 README.md : la notice du projet : problème, Issue Tree, arborescence, dictionnaire de données, lancement, API, limites.

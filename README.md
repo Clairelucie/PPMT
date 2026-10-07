@@ -94,6 +94,7 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 │   └── test_pipeline.py       # 57 tests pytest (collecte simulée, règles, base, API)
 │
 ├── docs/
+│   ├── soutenance/            # Documents de la soutenance du 16 octobre : dossier (Word, PDF), diaporama, fiche technique V1/V2
 │   ├── dictionnaire.md        # Dictionnaire de données
 │   ├── rgpd.md                # Registre des traitements RGPD
 │   ├── arborescence.md        # Ce plan commenté
@@ -213,6 +214,8 @@ La première version (V1) annonçait un R² de 0,995, dû à une **fuite de donn
 | Random Forest | 0,87 | 0,76 |
 | **XGBoost (retenu)** | **0,89** | **0,79** |
 
+La cible est « indice de tension > 100 » (46 % des 717 métiers). Les variables décrivent le profil des offres (parts de CDI, CDD et intérim, salaire, expérience, part d'offres pour débutants, longueur des descriptions, famille ROME), sans variable de volume. Chaque probabilité de `predictions_tension.csv` est prédite en validation croisée à 5 plis : le métier est prédit par un modèle qui ne l'a pas vu à l'entraînement. Les variables les plus importantes sont la longueur des descriptions (0,17), la part d'intérim (0,09) et de CDD (0,07). Sans la longueur des descriptions, l'AUC de XGBoost passe de 0,886 à 0,795.
+
 ## Limites connues
 
 - Adzuna n'est lu qu'en échantillon (12 500 offres sur 220 238).
@@ -234,6 +237,7 @@ Les données sont des offres d'emploi publiques. Les données personnelles éven
 
 | Fichier | Contenu |
 |---|---|
+| `soutenance/` | Documents de la soutenance du 16 octobre : dossier (Word, PDF), diaporama, fiche technique V1/V2 |
 | `dictionnaire.md` | Dictionnaire de données (tables, colonnes, règles) |
 | `rgpd.md` | Registre des traitements RGPD |
 | `arborescence.md` | Plan commenté du dépôt |
