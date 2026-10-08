@@ -27,10 +27,13 @@ qui recrutent le plus en Île-de-France ?
 │                                  └─► [BERNARD] Comment relancer sans doublon ?
 │                                       (idempotence : un fichier brut par source et par jour)
 │
-└─► 4. METTRE À DISPOSITION (C5) ──┬─► [CLAIRE] Comment l'exposer ? (API FastAPI, 7 routes, clé API)
-    (Pour qui ?)                   ├─► [CLAIRE] Comment le montrer ? (dashboard Streamlit, 6 onglets)
-                                   ├─► [CLAIRE] Comment le garantir ? (57 tests pytest)
-                                   └─► [CLAIRE] Quels métiers sont en tension ? (ML : XGBoost, AUC 0,886)
+├─► 4. METTRE À DISPOSITION (C5) ──┬─► [CLAIRE] Comment l'exposer ? (API FastAPI, 7 routes, clé API)
+│   (Pour qui ?)                   ├─► [CLAIRE] Comment le montrer ? (dashboard Streamlit, 6 onglets)
+│                                  ├─► [CLAIRE] Comment le garantir ? (57 tests pytest)
+│                                  └─► [CLAIRE] Quels métiers sont en tension ? (ML : XGBoost, AUC 0,886)
+│
+└─► 5. VÉRIFIER (hors pipeline) ───┬─► [CLAIRE] La base est-elle cohérente ? (62 435 offres, 0 doublon, indice moyen 99,99)
+    (L'indice est-il fiable ?)     └─► [CLAIRE] Que dit la tension officielle ? (API Marché du travail : ρ = +0,09 ; l'indice suit le volume d'offres)
 ```
 
 ## Version détaillée
@@ -70,11 +73,16 @@ de plusieurs sources pour identifier les métiers qui recrutent le plus en Île-
 │   ├─► [Base SQL] Table offres : 62 435 lignes (France Travail 58 301 · Adzuna 4 134)
 │   └─► [Base SQL] Indicateurs de tension : 1 514 métiers, calculés en SQL
 │
-└─► 4. METTRE À DISPOSITION (chaîne C5)
-    ├─► [Claire] API FastAPI : 7 routes, clé X-API-Key (403), validation Pydantic (422), Docker
-    ├─► [Claire] Dashboard Streamlit : 6 onglets, version en ligne de secours
-    ├─► [Claire] 57 tests pytest : API simulées, règles, base, API
-    └─► [Claire · ML] Métiers « en tension » : XGBoost, AUC 0,886 (V1 : fuite de données corrigée)
+├─► 4. METTRE À DISPOSITION (chaîne C5)
+│   ├─► [Claire] API FastAPI : 7 routes, clé X-API-Key (403), validation Pydantic (422), Docker
+│   ├─► [Claire] Dashboard Streamlit : 6 onglets, version en ligne de secours
+│   ├─► [Claire] 57 tests pytest : API simulées, règles, base, API
+│   └─► [Claire · ML] Métiers « en tension » : XGBoost, AUC 0,886 (V1 : fuite de données corrigée)
+│
+└─► 5. VÉRIFIER (hors pipeline, notebook/validation_marche_travail.py)
+    ├─► [Claire] Contrôles de cohérence de la base : 62 435 offres, 0 doublon, 1 514 métiers, indice moyen 99,99
+    ├─► [Claire] Comparaison à la tension officielle (API Marché du travail, 130 métiers) : ρ = +0,09
+    └─► [Claire] Lecture : l'indice mesure la demande des employeurs (volume d'offres, ρ = +0,89), pas la difficulté à recruter
 ```
 
 Légende : [Claire] et [Bernard] indiquent la personne qui a réalisé la partie en V2. Les chiffres sont ceux de la collecte du 6 octobre 2026.

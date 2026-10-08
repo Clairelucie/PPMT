@@ -193,3 +193,4 @@ Dockerfile : l'image de l'API (FastAPI, Uvicorn et Pydantic seulement), déploya
 | (absent) | logs/ | Journal de chaque collecte |
 | (absent) | docs/ et Dockerfile | Dictionnaire, registre RGPD, image de l'API |
 | notebook/ (un notebook par personne) | notebook/ml_tests.py | Expérimentation ML de la V2 |
+| (absent) | notebook/validation_marche_travail.py | Validation externe de l'indice (API Marché du travail), hors pipeline |
