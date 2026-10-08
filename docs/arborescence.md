@@ -20,7 +20,8 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 ├── logs/                      # collect_AAAAMMJJ_HHMMSS.log : un journal horodaté par collecte
 │
 ├── notebook/                  # Espace d'expérimentation
-│   └── ml_tests.py            # ML V2 : classification « en tension » (XGBoost, AUC 0,886)
+│   ├── ml_tests.py            # ML V2 : classification « en tension » (XGBoost, AUC 0,886)
+│   └── validation_marche_travail.py  # Validation externe : compare l'indice à l'API Marché du travail (hors pipeline)
 │
 ├── src/                       # Le cœur logique : scripts Python permanents du pipeline (ex-« sources/ »)
 │   ├── collect.py             # C1 : France Travail (OAuth2, cascade), Adzuna, contours et communes IDF
@@ -92,6 +93,9 @@ Chaque collecte écrit un journal horodaté (collect_AAAAMMJJ_HHMMSS.log) : zone
 
 
 ml_tests.py : l'expérimentation Machine Learning de la V2. La V1 annonçait un R² de 0,995, dû à une fuite de données ; la V2 classe les 717 métiers d'au moins 10 offres en « en tension » ou non (XGBoost : AUC 0,886, F1 0,785). Hors du bloc BC01, c'est une ouverture.
+
+
+validation_marche_travail.py : le script de validation externe de l'indice. Il interroge l'API « Marché du travail » de France Travail (indicateur officiel de tension, offres et demandeurs par métier) et compare l'indice de PPMT à ces données. Il est séparé du pipeline : il ouvre la base en lecture seule et n'est pas couvert par les 57 tests. Résultat du 8 octobre 2026 : corrélation de rang de +0,09 avec la tension officielle sur 1 301 métiers, +0,89 avec le nombre d'offres de France Travail (l'indice suit le volume d'offres).
 
 
 Comment sont construites les prédictions : la cible est « indice de tension > 100 » (46 % des 717 métiers) ; les variables d'entrée décrivent le profil des offres du métier (parts de CDI, CDD et intérim, salaire, part de salaires non affichés, expérience demandée, part d'offres pour débutants, longueur des descriptions, famille ROME), sans aucune variable de volume. Chaque probabilité de predictions_tension.csv (colonne proba_tension) est prédite en validation croisée à 5 plis : le métier est prédit par un modèle qui ne l'a pas vu à l'entraînement. Sans la longueur des descriptions, l'AUC de XGBoost passe de 0,886 à 0,795.

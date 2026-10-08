@@ -75,7 +75,8 @@ PPMT/                          # Plateforme Prédictive des Métiers en Tension 
 ├── logs/                      # collect_AAAAMMJJ_HHMMSS.log : un journal horodaté par collecte
 │
 ├── notebook/                  # Espace d'expérimentation
-│   └── ml_tests.py            # ML V2 : classification « en tension » (XGBoost, AUC 0,886)
+│   ├── ml_tests.py            # ML V2 : classification « en tension » (XGBoost, AUC 0,886)
+│   └── validation_marche_travail.py  # Validation externe : compare l'indice à l'API Marché du travail (hors pipeline)
 │
 ├── src/                       # Le cœur logique : scripts Python permanents du pipeline (ex-« sources/ »)
 │   ├── collect.py             # C1 : France Travail (OAuth2, cascade), Adzuna, contours et communes IDF
@@ -162,6 +163,18 @@ python notebook/ml_tests.py          # résultats ML + modèle de tension
 
 > La collecte dépend des clés API et du réseau, et elle produit d'autres chiffres que ceux du dossier de soutenance.
 
+### Validation externe (hors pipeline)
+
+Le script `notebook/validation_marche_travail.py` compare l'indice de tension à l'indicateur officiel de France Travail et de la Dares, obtenu par l'API « Marché du travail ». Il est **indépendant du pipeline** : il ne modifie ni la base (ouverte en lecture seule) ni les tests. Il utilise les mêmes clés France Travail, avec l'API Marché du travail associée à l'application sur francetravail.io.
+
+```bash
+python notebook/validation_marche_travail.py decouverte   # lit les référentiels de l'API
+python notebook/validation_marche_travail.py collecte     # 3 indicateurs × 1 513 codes ROME (environ 20 min, reprise possible)
+python notebook/validation_marche_travail.py analyse      # corrélations, écarts, résumé
+```
+
+Les fichiers produits sont dans `data/marche_travail/` (non versionné). Le résumé des résultats du 8 octobre 2026 est dans `docs/validation_marche_travail.md` : corrélation de rang de +0,09 avec la tension officielle sur 1 301 métiers, et de +0,89 avec le nombre d'offres de France Travail : l'indice suit le volume d'offres.
+
 ### Lancer les services
 
 ```bash
@@ -219,7 +232,7 @@ La cible est « indice de tension > 100 » (46 % des 717 métiers). Les variable
 ## Limites connues
 
 - Adzuna n'est lu qu'en échantillon (12 500 offres sur 220 238).
-- L'indice mesure uniquement la demande des employeurs, pas le nombre de demandeurs d'emploi.
+- L'indice mesure uniquement la demande des employeurs, pas le nombre de demandeurs d'emploi : la comparaison avec l'indicateur officiel de tension (API Marché du travail) donne une corrélation négligeable (+0,09). Une version 3 intégrant les demandeurs est la suite logique.
 - La collecte n'est pas planifiée automatiquement (lancement à la demande ; cron puis Airflow prévus).
 - La cascade de collecte et la table de correspondance ROME d'Adzuna n'ont pas de test unitaire dédié.
 - Une seule collecte complète : pas d'historique, donc pas de prévision.
@@ -240,6 +253,7 @@ Les données sont des offres d'emploi publiques. Les données personnelles éven
 | `soutenance/` | Documents de la soutenance du 16 octobre : dossier (Word, PDF) et diaporama |
 | `dictionnaire.md` | Dictionnaire de données (tables, colonnes, règles) |
 | `rgpd.md` | Registre des traitements RGPD |
+| `validation_marche_travail.md` | Résultats de la comparaison avec l'API Marché du travail (8 octobre 2026) |
 | `arborescence.md` | Plan commenté du dépôt |
 | `issue_tree.md` | Issue Tree du projet |
 | `PPMT_Arborescence_Issue_Tree_V2.xlsx` | Classeur de cadrage : arborescence, explications, évolutions depuis mai, Issue Tree, sources de données |
