@@ -237,6 +237,8 @@ def test_statuts_coherents_avec_seuils(conn):
 def client():
     if not DB.exists():
         pytest.skip("Base absente")
+    import os
+    os.environ.setdefault("PPMT_API_KEY", API_KEY)   # clé de test : l'API refuse de démarrer sans clé
     from fastapi.testclient import TestClient
     from api.main import app
     return TestClient(app)

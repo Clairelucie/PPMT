@@ -21,7 +21,10 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 DB_PATH = Path(os.getenv("PPMT_DB", Path(__file__).resolve().parents[1] / "data" / "ppmt.db"))
-API_KEY = os.getenv("PPMT_API_KEY", "ppmt-demo-2026")   # clé de démonstration — à surcharger en production
+API_KEY = os.getenv("PPMT_API_KEY")   # secret fourni à l'exécution, jamais écrit dans le code
+if not API_KEY:
+    raise RuntimeError("Variable d'environnement PPMT_API_KEY absente : définissez-la avant de lancer l'API "
+                       "(ex. : export PPMT_API_KEY=<votre clé>).")
 
 app = FastAPI(
     title="API PPMT — Métiers en tension Île-de-France",
