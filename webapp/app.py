@@ -275,8 +275,8 @@ with tab1:
     nb_ft = len(df_ft_f)
     nb_total = nb_az + nb_ft
     nb_secteurs = df_filtered.loc[df_filtered["categorie"]!="Non classe","categorie"].nunique()
-    sal_az = df_az_f["salaire_moyen"].mean() if "salaire_moyen" in df_az_f.columns else 0
-    sal_ft = df_ft_f["salaire_moyen"].mean() if "salaire_moyen" in df_ft_f.columns else 0
+    sal_az = df_az_f["salaire_moyen"].median() if "salaire_moyen" in df_az_f.columns else 0
+    sal_ft = df_ft_f["salaire_moyen"].median() if "salaire_moyen" in df_ft_f.columns else 0
     tres = NB_TRES
 
     c1,c2,c3,c4,c5 = st.columns(5)
@@ -286,10 +286,10 @@ with tab1:
         st.markdown(f'<div class="kpi-card green"><p class="kpi-val">{nb_secteurs}</p><p class="kpi-label">Secteurs</p><p class="kpi-sub">Domaines ROME</p></div>', unsafe_allow_html=True)
     with c3:
         sal_str = f"{sal_az:,.0f} EUR" if sal_az and sal_az>0 else "N/A"
-        st.markdown(f'<div class="kpi-card orange"><p class="kpi-val">{sal_str}</p><p class="kpi-label">Salaire moyen Adzuna</p><p class="kpi-sub">Salaires affiches · annuel brut</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card orange"><p class="kpi-val">{sal_str}</p><p class="kpi-label">Salaire median Adzuna</p><p class="kpi-sub">Salaires affiches · annuel brut</p></div>', unsafe_allow_html=True)
     with c4:
         sal_ft_str = f"{sal_ft:,.0f} EUR" if sal_ft and sal_ft>0 else "N/A"
-        st.markdown(f'<div class="kpi-card purple"><p class="kpi-val">{sal_ft_str}</p><p class="kpi-label">Salaire moyen FT</p><p class="kpi-sub">Salaires affiches · annuel brut</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card purple"><p class="kpi-val">{sal_ft_str}</p><p class="kpi-label">Salaire median FT</p><p class="kpi-sub">Salaires affiches · annuel brut</p></div>', unsafe_allow_html=True)
     with c5:
         st.markdown(f'<div class="kpi-card red"><p class="kpi-val">{tres}</p><p class="kpi-label">Metiers TRES EN TENSION</p><p class="kpi-sub">Sur {NB_METIERS:,} analyses</p></div>', unsafe_allow_html=True)
 
