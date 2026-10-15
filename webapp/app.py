@@ -843,15 +843,28 @@ with tab6:
     st.divider()
     col3,col4 = st.columns(2)
     with col3:
-        st.markdown("#### Distribution salaires Adzuna (15k-150k EUR)")
-        df_dist = df_az_f[(df_az_f["salaire_moyen"].notna())&(df_az_f["salaire_moyen"]>15000)&(df_az_f["salaire_moyen"]<150000)]
+        st.markdown("#### Repartition des salaires affiches")
+        df_dist = df_filtered[(df_filtered["salaire_moyen"].notna())&(df_filtered["salaire_moyen"]>15000)&(df_filtered["salaire_moyen"]<150000)]
         if len(df_dist)>0:
-            fig3 = px.histogram(df_dist, x="salaire_moyen", nbins=30,
-                color_discrete_sequence=["#003189"],
-                labels={"salaire_moyen":"Salaire annuel (EUR)"})
-            fig3.update_layout(height=320, xaxis_tickformat=",.0f",
-                xaxis_title="Salaire annuel brut (EUR)", yaxis_title="Nb offres")
-            st.plotly_chart(fig3, width="stretch")
+            med, moy = df_dist["salaire_moyen"].median(), df_dist["salaire_moyen"].mean()
+            fig3 = px.histogram(df_dist, x="salaire_moyen", color="source", nbins=40, histnorm="percent",
+                barmode="overlay", opacity=0.6,
+                color_discrete_map={"France Travail": "#C53030", "Adzuna": "#3182CE"},
+                labels={"salaire_moyen": "Salaire annuel brut (EUR)", "source": "Source"})
+            fig3.add_vline(x=med, line_width=3, line_color="#1A202C",
+                annotation_text=f"Mediane {fr(med)} €", annotation_position="top right")
+            fig3.add_vline(x=moy, line_width=2, line_dash="dash", line_color="#DD6B20",
+                annotation_text=f"Moyenne {fr(moy)} €", annotation_position="bottom right",
+                annotation_font_color="#DD6B20")
+            fig3.update_layout(height=360, plot_bgcolor="white", xaxis_tickformat=",.0f",
+                xaxis_title="Salaire annuel brut (EUR)", yaxis_title="% des offres de la source",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            st.plotly_chart(fig3, width="stretch", key="repartition_salaires")
+            st.caption(f"{fr(len(df_dist))} offres avec un salaire affiche (entre 15 000 et 150 000 €). "
+                       f"Quelques salaires tres eleves tirent la moyenne ({fr(moy)} €) au-dessus de la mediane ({fr(med)} €) : "
+                       "c'est pourquoi les indicateurs utilisent la mediane.")
+        else:
+            st.info("Aucune donnee pour cette combinaison de filtres.")
 
     with col4:
         st.markdown("#### Salaire median par departement (toutes sources)")
