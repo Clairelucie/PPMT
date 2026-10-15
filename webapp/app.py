@@ -36,6 +36,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def fr(x, dec=0):
+    """62435 -> '62 435' ; format français pour l'affichage."""
+    try:
+        return f"{x:,.{dec}f}".replace(",", " ").replace(".", ",")
+    except (TypeError, ValueError):
+        return str(x)
+
+import plotly.io as pio
+pio.templates["ppmt"] = go.layout.Template(layout=dict(separators=", "))
+pio.templates.default = "plotly+ppmt"      # séparateurs français dans tous les graphiques
+
 # ─── CHARGEMENT (V2 : une seule source de vérité, la base data/ppmt.db) ─────
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,14 +113,28 @@ def load_itm():
         SELECT i.*, m.libelle,
                i.salaire_median AS salaire_moyen,
                (SELECT AVG(o.contrat = 'CDD') * 100 FROM offres o WHERE o.code_rome = i.code_rome) AS pct_cdd,
-               (SELECT AVG(o.salaire_moyen) FROM offres o WHERE o.code_rome = i.code_rome
+               (SELECT NULL FROM offres o WHERE o.code_rome = i.code_rome
                   AND o.source = 'france_travail' AND o.salaire_impute = 0) AS salaire_moyen_ft,
-               (SELECT AVG(o.salaire_moyen) FROM offres o WHERE o.code_rome = i.code_rome
+               (SELECT NULL FROM offres o WHERE o.code_rome = i.code_rome
                   AND o.source = 'adzuna' AND o.salaire_impute = 0) AS salaire_moyen_adzuna
         FROM indicateurs_tension i JOIN metiers_rome m USING (code_rome)""")
     df["pct_cdi"] = df["part_cdi"]
     df["domaine"] = df["code_rome"].str[0].map(DOMAINES_ROME).fillna("Autre")
+    sal = load_offres().dropna(subset=["salaire_moyen"]).groupby(["code_rome", "source"])["salaire_moyen"].median().unstack()
+    df["salaire_moyen_ft"] = df["code_rome"].map(sal.get("france_travail", pd.Series(dtype=float)))
+    df["salaire_moyen_adzuna"] = df["code_rome"].map(sal.get("adzuna", pd.Series(dtype=float)))
     return df
+
+def nom_court(lib):
+    """'Conseiller / Conseillere immobilier' -> 'Conseiller immobilier'."""
+    lib = str(lib)
+    if "/" not in lib:
+        return lib[:32]
+    gauche, droite = [x.strip() for x in lib.split("/", 1)]
+    if " " in gauche:
+        return gauche[:32]
+    reste = droite.split(" ", 1)[1] if " " in droite else ""
+    return (gauche + " " + reste).strip()[:32]
 
 @st.cache_data
 def load_predictions():
@@ -148,9 +173,17 @@ def extract_skills(df, col="description"):
         "microservices","api rest","graphql","no-code","low-code","intelligence artificielle"]
     formations_quali = ["bac+2","bac+3","bac+5","master","licence","bts","dut","ingenieur","mba","doctorat"]
     formations_type = ["alternance","apprentissage","certification","diplome"]
+    import re, unicodedata
     texts = df[col].dropna().str.lower().str.cat(sep=" ")
+    texts = unicodedata.normalize("NFKD", texts).encode("ascii", "ignore").decode()   # é -> e
     def count_kw(kw_list):
-        return {kw: texts.count(kw) for kw in kw_list if texts.count(kw) > 0}
+        """Mots entiers uniquement : « api » n'est plus compté dans « rapide », « mba » dans « embauche »."""
+        res = {}
+        for kw in kw_list:
+            nb = len(re.findall(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])", texts))
+            if nb > 0:
+                res[kw] = nb
+        return res
     return {
         "hard": count_kw(hard),
         "soft": count_kw(soft),
@@ -225,9 +258,9 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ─── FILTRES ────────────────────────────────────────────────
-def apply_filters(df):
+def apply_filters(df, avec_dept=True):
     d = df.copy()
-    if filtre_dept != "Tous" and "departement" in d.columns:
+    if avec_dept and filtre_dept != "Tous" and "departement" in d.columns:
         d = d[d["departement"]==filtre_dept]
     if filtre_contrat != "Tous" and "contrat_norm" in d.columns:
         d = d[d["contrat_norm"]==filtre_contrat]
@@ -236,6 +269,7 @@ def apply_filters(df):
     return d
 
 df_filtered = apply_filters(df_all)
+df_sans_dept = apply_filters(df_all, avec_dept=False)   # pour comparer les departements entre eux
 df_az_f = apply_filters(df_az)
 df_ft_f = apply_filters(df_ft)
 
@@ -245,12 +279,12 @@ st.markdown(f"""
 <h2 style="margin:0 0 6px 0;font-size:1.55rem">Plateforme Predictive des Metiers en Tension — IDF</h2>
 <p style="margin:0;opacity:0.92;font-size:0.92rem">
 PPMT identifie les metiers en tension en Ile-de-France a partir des donnees <b>Adzuna</b> et <b>France Travail</b>.
-L'indice de tension (ITM) compare le volume d'offres de chaque metier (code ROME) a la moyenne : 100 = metier moyen. Un modele ML experimental (XGBoost, AUC {ml.get('v2',{}).get('resultats_cv5',{}).get('XGBoost',{}).get('roc_auc',0.885):.2f}) repere les metiers en tension a partir du profil de leurs offres.
+L'indice de tension (ITM) compare le volume d'offres de chaque metier (code ROME) a la moyenne : 100 = metier moyen. Un modele ML experimental (XGBoost, AUC {fr(ml.get('v2',{}).get('resultats_cv5',{}).get('XGBoost',{}).get('roc_auc',0.885), 2)}) repere les metiers en tension a partir du profil de leurs offres.
 Utilisez les filtres a gauche pour explorer par departement, contrat ou secteur.
 </p>
 <div style="margin-top:12px">
-<span class="stat-badge">{NB_OFFRES:,} offres</span>
-<span class="stat-badge">{NB_METIERS:,} metiers analyses</span>
+<span class="stat-badge">{fr(NB_OFFRES)} offres</span>
+<span class="stat-badge">{fr(NB_METIERS)} metiers analyses</span>
 <span class="stat-badge">8 departements IDF</span>
 <span class="stat-badge red">{NB_TRES} TRES EN TENSION</span>
 <span class="stat-badge green">Sources : Adzuna + France Travail</span>
@@ -258,6 +292,8 @@ Utilisez les filtres a gauche pour explorer par departement, contrat ou secteur.
 </div>
 """, unsafe_allow_html=True)
 
+st.caption("Les filtres s'appliquent aux graphiques d'offres (volumes, contrats, salaires, carte). "
+           "Les indicateurs par metier (indice de tension, statuts, Top 10, modele ML) sont calcules sur toute l'Ile-de-France.")
 tab1,tab2,tab3,tab4,tab5,tab6 = st.tabs([
     "Vue d ensemble",
     "Secteurs",
@@ -274,30 +310,30 @@ with tab1:
     nb_az = len(df_az_f)
     nb_ft = len(df_ft_f)
     nb_total = nb_az + nb_ft
-    nb_secteurs = df_filtered.loc[df_filtered["categorie"]!="Non classe","categorie"].nunique()
+    nb_secteurs = df_filtered["code_rome"].nunique()
     sal_az = df_az_f["salaire_moyen"].median() if "salaire_moyen" in df_az_f.columns else 0
     sal_ft = df_ft_f["salaire_moyen"].median() if "salaire_moyen" in df_ft_f.columns else 0
     tres = NB_TRES
 
     c1,c2,c3,c4,c5 = st.columns(5)
     with c1:
-        st.markdown(f'<div class="kpi-card"><p class="kpi-val">{nb_total:,}</p><p class="kpi-label">Total offres (filtre)</p><p class="kpi-sub">AZ: {nb_az:,} · FT: {nb_ft:,}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card"><p class="kpi-val">{fr(nb_total)}</p><p class="kpi-label">Total offres (filtre)</p><p class="kpi-sub">AZ: {fr(nb_az)} · FT: {fr(nb_ft)}</p></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="kpi-card green"><p class="kpi-val">{nb_secteurs}</p><p class="kpi-label">Secteurs</p><p class="kpi-sub">Domaines ROME</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card green"><p class="kpi-val">{fr(nb_secteurs)}</p><p class="kpi-label">Metiers (codes ROME)</p><p class="kpi-sub">repartis en 14 domaines</p></div>', unsafe_allow_html=True)
     with c3:
-        sal_str = f"{sal_az:,.0f} EUR" if sal_az and sal_az>0 else "N/A"
+        sal_str = f"{fr(sal_az)} EUR" if sal_az and sal_az>0 else "N/A"
         st.markdown(f'<div class="kpi-card orange"><p class="kpi-val">{sal_str}</p><p class="kpi-label">Salaire median Adzuna</p><p class="kpi-sub">Salaires affiches · annuel brut</p></div>', unsafe_allow_html=True)
     with c4:
-        sal_ft_str = f"{sal_ft:,.0f} EUR" if sal_ft and sal_ft>0 else "N/A"
+        sal_ft_str = f"{fr(sal_ft)} EUR" if sal_ft and sal_ft>0 else "N/A"
         st.markdown(f'<div class="kpi-card purple"><p class="kpi-val">{sal_ft_str}</p><p class="kpi-label">Salaire median FT</p><p class="kpi-sub">Salaires affiches · annuel brut</p></div>', unsafe_allow_html=True)
     with c5:
-        st.markdown(f'<div class="kpi-card red"><p class="kpi-val">{tres}</p><p class="kpi-label">Metiers TRES EN TENSION</p><p class="kpi-sub">Sur {NB_METIERS:,} analyses</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card red"><p class="kpi-val">{tres}</p><p class="kpi-label">Metiers TRES EN TENSION</p><p class="kpi-sub">Sur {fr(NB_METIERS)} analyses</p></div>', unsafe_allow_html=True)
 
     st.divider()
     col1,col2 = st.columns(2)
     with col1:
         st.subheader("Repartition des statuts ITM")
-        st.markdown(f'<div class="section-note">Table <b>indicateurs_tension</b> (base V2, calcul SQL) — {NB_METIERS:,} metiers, Adzuna + France Travail. Seuils : SATURE &lt;50 · EQUILIBRE 50-100 · EN TENSION 100-150 · TRES EN TENSION &gt;150</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-note">Table <b>indicateurs_tension</b> (base V2, calcul SQL) — {fr(NB_METIERS)} metiers, Adzuna + France Travail. Seuils : SATURE &lt;50 · EQUILIBRE 50-100 · EN TENSION 100-150 · TRES EN TENSION &gt;150</div>', unsafe_allow_html=True)
         if len(df_itm)>0:
             df_s = df_itm["statut"].value_counts().reset_index()
             df_s.columns = ["statut","nb"]
@@ -322,56 +358,71 @@ with tab1:
         st.subheader("Top 10 metiers en tension (ITM IDF)")
         st.markdown('<div class="section-note">Indice de tension = offres du metier / offres d un metier moyen x 100. Source : table <b>indicateurs_tension</b> (Adzuna + France Travail)</div>', unsafe_allow_html=True)
         if len(df_itm)>0:
-            top10 = df_itm[df_itm["statut"]=="TRES EN TENSION"].sort_values("indice_tension",ascending=False).head(10)
-            fig2 = px.bar(top10, x="indice_tension", y="libelle", orientation="h",
-                color="indice_tension", color_continuous_scale=["#FED7D7","#C53030"],
-                text="indice_tension",
-                labels={"indice_tension":"Indice tension","libelle":"Metier"})
-            fig2.update_traces(texttemplate="%{text:.0f}", textposition="outside")
-            fig2.update_layout(height=400, showlegend=False, coloraxis_showscale=False,
-                xaxis_title="Indice de tension (100 = metier moyen)", yaxis_title="")
-            st.plotly_chart(fig2, width="stretch")
+            top10 = df_itm[df_itm["statut"]=="TRES EN TENSION"].sort_values("indice_tension",ascending=False).head(10).copy()
+            top10["metier"] = top10["code_rome"] + " · " + top10["libelle"].apply(nom_court)
+            top10["etiquette"] = top10.apply(lambda r: fr(int(r["indice_tension"])) + "  (" + fr(r["nb_offres_total"]) + " offres)", axis=1)
+            fig2 = go.Figure(go.Bar(x=top10["indice_tension"], y=top10["metier"], orientation="h",
+                marker_color="#C2410C", text=top10["etiquette"], textposition="outside", cliponaxis=False))
+            fig2.update_layout(height=420, showlegend=False, plot_bgcolor="white",
+                xaxis=dict(title="Indice de tension (100 = metier moyen)", range=[0, top10["indice_tension"].max() * 1.35]),
+                yaxis=dict(title="", autorange="reversed"), margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig2, width="stretch", key="top10_top10")
 
     st.divider()
-    st.subheader("Offres publiees — Adzuna vs France Travail")
+    st.subheader("Offres en base — Adzuna et toutes sources par departement")
     MOIS_FR = ["janvier","fevrier","mars","avril","mai","juin","juillet","aout","septembre","octobre","novembre","decembre"]
     _series = [d["date_publication"] for d in (df_az, df_ft) if "date_publication" in d.columns]
     _mois_dispo = sorted(pd.concat(_series, ignore_index=True).dropna().dt.strftime("%Y-%m").unique(), reverse=True)[:12] if _series else []
     if _mois_dispo:
-        _mois_sel = st.selectbox("Mois de publication", _mois_dispo, index=0,
-            format_func=lambda m: f"{MOIS_FR[int(m[5:7])-1]} {m[:4]}", key="mois_pub_compare")
-        _annee, _mois = int(_mois_sel[:4]), int(_mois_sel[5:7])
-        lib_mois = f"{MOIS_FR[_mois-1]} {_annee}"
+        _choix = {"Toutes les offres en base": "tous"}
+        _choix.update({f"{MOIS_FR[int(m[5:7])-1]} {m[:4]}": m for m in _mois_dispo})
+        _mois_sel = _choix[st.selectbox("Periode de publication", list(_choix), index=0, key="mois_pub_compare")]
+        if _mois_sel == "tous":
+            _annee, _mois, lib_mois = None, None, "toute la base"
+        else:
+            _annee, _mois = int(_mois_sel[:4]), int(_mois_sel[5:7])
+            lib_mois = f"{MOIS_FR[_mois-1]} {_annee}"
     else:
         _annee, _mois, lib_mois = 0, 0, "-"
-    df_az_mois = df_az[(df_az["date_publication"].dt.year==_annee)&(df_az["date_publication"].dt.month==_mois)] if "date_publication" in df_az.columns else pd.DataFrame()
-    df_ft_mois = df_ft[(df_ft["date_publication"].dt.year==_annee)&(df_ft["date_publication"].dt.month==_mois)] if "date_publication" in df_ft.columns else pd.DataFrame()
+    def _periode(d):     # filtres de la barre laterale + periode choisie
+        if _annee is None:
+            return d
+        return d[(d["date_publication"].dt.year==_annee)&(d["date_publication"].dt.month==_mois)]
+    df_az_mois = _periode(df_az_f)
+    df_ft_mois = _periode(df_ft_f)
+    df_tout_mois = pd.concat([df_az_mois, df_ft_mois], ignore_index=True)
 
-    st.markdown(f'<div class="section-note">Offres publiees en {lib_mois}, apres dedoublonnage. Adzuna : {len(df_az_mois):,} offres · France Travail : {len(df_ft_mois):,} offres. Les API ne renvoient que les offres encore actives a la date de collecte.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-note">Offres ({lib_mois}, filtres appliques), apres dedoublonnage : {fr(len(df_tout_mois))} offres. Adzuna : {fr(len(df_az_mois))} · France Travail : {fr(len(df_ft_mois))}. Les API ne renvoient que les offres encore actives a la date de collecte.</div>', unsafe_allow_html=True)
     if len(df_az_mois)>0 or len(df_ft_mois)>0:
         col_a, col_b = st.columns(2)
         with col_a:
-            st.markdown(f"**Adzuna — {lib_mois.capitalize()} par domaine ROME**")
+            st.markdown(f"**Adzuna — par domaine ROME ({lib_mois})**")
             if len(df_az_mois)>0 and "categorie" in df_az_mois.columns:
                 df_cat_mois = df_az_mois.groupby("categorie").size().reset_index(name="nb")
                 df_cat_mois = df_cat_mois[~df_cat_mois["categorie"].isin(["Unknown","","Non classe"])].sort_values("nb",ascending=True).tail(12)
                 fig_mois = px.bar(df_cat_mois, x="nb", y="categorie", orientation="h",
                     color="nb", color_continuous_scale=["#EBF8FF","#003189"], text="nb")
-                fig_mois.update_traces(textposition="outside")
+                fig_mois.update_traces(textposition="outside", cliponaxis=False)
                 fig_mois.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
                     xaxis_title="Offres", yaxis_title="")
                 st.plotly_chart(fig_mois, width="stretch")
         with col_b:
-            st.markdown(f"**France Travail — {lib_mois.capitalize()} par departement**")
-            if len(df_ft_mois)>0 and "departement" in df_ft_mois.columns:
-                df_dept_mois = df_ft_mois.groupby("departement").size().reset_index(name="nb")
-                df_dept_mois = df_dept_mois[df_dept_mois["departement"].notna()].sort_values("nb",ascending=True)
-                fig_dept = px.bar(df_dept_mois, x="nb", y="departement", orientation="h",
-                    color="nb", color_continuous_scale=["#FFF5F5","#C53030"], text="nb")
-                fig_dept.update_traces(textposition="outside")
-                fig_dept.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
-                    xaxis_title="Offres", yaxis_title="")
-                st.plotly_chart(fig_dept, width="stretch")
+            st.markdown(f"**Toutes sources — offres par departement ({lib_mois}), part du total**")
+            df_comp = _periode(df_sans_dept)
+            if len(df_comp)>0 and "departement" in df_comp.columns:
+                df_dept_mois = df_comp.groupby("departement").size().reset_index(name="nb")
+                df_dept_mois = df_dept_mois[df_dept_mois["departement"].notna()].sort_values("nb",ascending=False)
+                df_dept_mois["part"] = df_dept_mois["nb"] / df_dept_mois["nb"].sum() * 100
+                couleurs = ["#C53030" if (filtre_dept == "Tous" or d == filtre_dept) else "#F3C4C4" for d in df_dept_mois["departement"]]
+                fig_dept = go.Figure(go.Bar(x=df_dept_mois["nb"], y=df_dept_mois["departement"], orientation="h",
+                    marker_color=couleurs, cliponaxis=False, textposition="outside",
+                    text=[f"{fr(n)}  ({fr(p_, 0)} %)" for n, p_ in zip(df_dept_mois["nb"], df_dept_mois["part"])]))
+                fig_dept.update_layout(height=380, showlegend=False, plot_bgcolor="white",
+                    xaxis=dict(title="Offres", range=[0, df_dept_mois["nb"].max() * 1.3]),
+                    yaxis=dict(title="", autorange="reversed"), margin=dict(l=10, r=10, t=10, b=10))
+                st.plotly_chart(fig_dept, width="stretch", key="offres_par_dept")
+                if filtre_dept != "Tous":
+                    st.caption(f"{filtre_dept} mis en evidence parmi les 8 departements (autres filtres appliques).")
 
 # ══════════════════════════════════════════════════════════════
 # TAB 2 — SECTEURS
@@ -418,7 +469,7 @@ with tab2:
     with col_c1:
         st.markdown("**France Travail — Contrats normalises**")
         if "contrat_norm" in df_ft.columns:
-            df_co_ft = df_ft.groupby("contrat_norm").size().reset_index(name="nb")
+            df_co_ft = df_ft_f.groupby("contrat_norm").size().reset_index(name="nb")
             df_co_ft = df_co_ft[df_co_ft["contrat_norm"]!="Non renseigne"].sort_values("nb",ascending=False)
             colors_ct = {"CDI":"#003189","CDD":"#3182CE","Interim":"#63B3ED","Saisonnier":"#90CDF4","Alternance":"#48BB78","Profession liberale":"#9F7AEA","Autre":"#CBD5E0"}
             if len(df_co_ft) > 0:
@@ -433,34 +484,32 @@ with tab2:
                 st.info("Aucune donnee pour cette combinaison de filtres.")
 
     with col_c2:
-        st.markdown("**Adzuna — Contrats normalises**")
-        if "contrat_norm" in df_az.columns:
-            df_co_az = df_az.groupby("contrat_norm").size().reset_index(name="nb")
-            df_co_az = df_co_az[df_co_az["contrat_norm"]!="Non renseigne"].sort_values("nb",ascending=False)
-            if len(df_co_az) > 0:
-                fig_az_co = px.bar(df_co_az, x="contrat_norm", y="nb", color="contrat_norm",
-                    color_discrete_map=colors_ct, text="nb",
-                    labels={"contrat_norm":"Type de contrat","nb":"Offres"})
-                fig_az_co.update_traces(textposition="outside")
-                fig_az_co.update_layout(height=350, showlegend=False,
-                    xaxis_title="", yaxis_title="Offres Adzuna")
-                st.plotly_chart(fig_az_co, width="stretch")
-            else:
-                st.info("Aucune donnee pour cette combinaison de filtres.")
+        st.markdown("**Adzuna — Temps de travail**")
+        st.caption("Adzuna ne publie pas le type de contrat, seulement le temps de travail.")
+        df_tt = df_az_f["temps_travail"].fillna("Non renseigne").value_counts().reset_index()
+        df_tt.columns = ["temps_travail", "nb"]
+        if len(df_tt) > 0:
+            fig_az_co = px.bar(df_tt, x="temps_travail", y="nb", text="nb", color_discrete_sequence=["#3182CE"],
+                labels={"temps_travail": "", "nb": "Offres"})
+            fig_az_co.update_traces(textposition="outside", cliponaxis=False)
+            fig_az_co.update_layout(height=350, showlegend=False, xaxis_title="", yaxis_title="Offres Adzuna")
+            st.plotly_chart(fig_az_co, width="stretch")
+        else:
+            st.info("Aucune donnee pour cette combinaison de filtres.")
 
 # ══════════════════════════════════════════════════════════════
 # TAB 3 — COMPETENCES & TECH
 # ══════════════════════════════════════════════════════════════
 with tab3:
     st.subheader("Competences et Technologies")
-    st.markdown(f'<div class="section-note">Extraction depuis les descriptions des <b>{NB_OFFRES_TRES:,} offres des metiers TRES EN TENSION</b> ({NB_TRES} codes ROME). Echelle = nb occurrences. Source : Adzuna + France Travail combines.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-note">Extraction depuis les descriptions des <b>{fr(NB_OFFRES_TRES)} offres des metiers TRES EN TENSION</b> ({NB_TRES} codes ROME). Echelle = nb occurrences. Source : Adzuna + France Travail combines.</div>', unsafe_allow_html=True)
 
     with st.spinner("Analyse des descriptions en cours..."):
         sk_az, sk_ft = extract_skills_tension(df_az, df_ft, df_itm)
 
     col1,col2 = st.columns(2)
     with col1:
-        st.markdown(f"#### Hard Skills — Metiers TRES EN TENSION ({NB_TRES} metiers, {NB_OFFRES_TRES:,} offres)")
+        st.markdown(f"#### Hard Skills — Metiers TRES EN TENSION ({NB_TRES} metiers, {fr(NB_OFFRES_TRES)} offres)")
         hard = merge_skills(sk_az, sk_ft, "hard")
         if hard:
             df_h = pd.DataFrame(list(hard.items()),columns=["skill","nb"]).sort_values("nb")
@@ -470,7 +519,7 @@ with tab3:
                     labels={"nb":"Occurrences dans les offres","skill":"Competence"})
                 fig.update_traces(textposition="outside")
                 fig.update_layout(height=520, showlegend=False, coloraxis_showscale=False,
-                    xaxis_title="Nb occurrences dans les offres (tous secteurs)", yaxis_title="")
+                    xaxis_title="Nb occurrences dans les offres des metiers tres en tension", yaxis_title="")
                 st.plotly_chart(fig, width="stretch")
             else:
                 st.info("Aucune donnee pour cette combinaison de filtres.")
@@ -521,21 +570,20 @@ with tab4:
         st.markdown("#### Niveaux de formation requis par les employeurs")
         st.markdown('<div class="section-note"><b>Prerequis employeurs</b> — niveaux de diplome mentionnes dans les offres d emploi (bac+2, master...). Ce sont les exigences des recruteurs, pas les niveaux des candidats.</div>', unsafe_allow_html=True)
         fq = merge_skills(sk_az, sk_ft, "formations_quali")
-        if fq:
-            df_fq = pd.DataFrame(list(fq.items()),columns=["formation","nb"]).sort_values("nb",ascending=False)
-            ordre_form = ["doctorat","mba","ingenieur","bac+5","master","licence","bac+3","bac+2","dut","bts"]
-            df_fq["formation"] = pd.Categorical(df_fq["formation"], categories=ordre_form, ordered=True)
-            df_fq = df_fq.sort_values("formation")
-            if len(df_fq) > 0:
-                fig = px.bar(df_fq, x="formation", y="nb", color="nb",
-                    color_continuous_scale=["#FFFAF0","#DD6B20"], text="nb",
-                    labels={"nb":"Occurrences","formation":"Niveau"})
-                fig.update_traces(textposition="outside")
-                fig.update_layout(height=350, showlegend=False, coloraxis_showscale=False,
-                    xaxis_title="Niveau de diplome (prerequis employeur)", yaxis_title="Occurrences")
-                st.plotly_chart(fig, width="stretch")
-            else:
-                st.info("Aucune donnee pour cette combinaison de filtres.")
+        NIVEAUX = {"Bac+2 (BTS, DUT)": ["bac+2", "bts", "dut"],
+                   "Bac+3 (licence)": ["bac+3", "licence"],
+                   "Bac+5 (master, ingenieur, MBA)": ["bac+5", "master", "ingenieur", "mba"],
+                   "Doctorat": ["doctorat"]}
+        df_fq = pd.DataFrame({"niveau": list(NIVEAUX), "nb": [sum(fq.get(k, 0) for k in mots) for mots in NIVEAUX.values()]})
+        if df_fq["nb"].sum() > 0:
+            fig = px.bar(df_fq, x="niveau", y="nb", text="nb", color_discrete_sequence=["#DD6B20"],
+                labels={"nb": "Occurrences", "niveau": "Niveau"})
+            fig.update_traces(textposition="outside", cliponaxis=False)
+            fig.update_layout(height=350, showlegend=False,
+                xaxis_title="Niveau de diplome (prerequis employeur)", yaxis_title="Occurrences")
+            st.plotly_chart(fig, width="stretch")
+        else:
+            st.info("Aucune donnee pour cette combinaison de filtres.")
 
     with col2:
         st.markdown("#### Modalites de formation et alternance")
@@ -564,12 +612,12 @@ with tab4:
             top10_cdi = df_itm[df_itm["statut"]=="TRES EN TENSION"].sort_values("indice_tension",ascending=False).head(10)
             fig3 = go.Figure()
             fig3.add_trace(go.Bar(
-                name="CDI", x=top10_cdi["libelle"], y=top10_cdi["pct_cdi"],
+                name="CDI", x=top10_cdi["libelle"].apply(nom_court), y=top10_cdi["pct_cdi"],
                 marker_color="#003189", text=top10_cdi["pct_cdi"].round(1),
                 texttemplate="%{text}%", textposition="outside"
             ))
             fig3.add_trace(go.Bar(
-                name="CDD", x=top10_cdi["libelle"], y=top10_cdi["pct_cdd"],
+                name="CDD", x=top10_cdi["libelle"].apply(nom_court), y=top10_cdi["pct_cdd"],
                 marker_color="#63B3ED", text=top10_cdi["pct_cdd"].round(1),
                 texttemplate="%{text}%", textposition="outside"
             ))
@@ -604,9 +652,9 @@ with tab5:
     NB_ML = ml.get("v2", {}).get("nb_metiers", len(df_pred))
     m1,m2,m3,m4 = st.columns(4)
     with m1:
-        st.markdown(f'<div class="ml-card"><div class="ml-val" style="color:#003189">{AUC:.2f}</div><div class="ml-label">AUC (validation croisee)</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="ml-card"><div class="ml-val" style="color:#003189">{fr(AUC, 2)}</div><div class="ml-label">AUC (validation croisee)</div></div>', unsafe_allow_html=True)
     with m2:
-        st.markdown(f'<div class="ml-card"><div class="ml-val" style="color:#38A169">{F1:.2f}</div><div class="ml-label">F1-score</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="ml-card"><div class="ml-val" style="color:#38A169">{fr(F1, 2)}</div><div class="ml-label">F1-score</div></div>', unsafe_allow_html=True)
     with m3:
         st.markdown('<div class="ml-card"><div class="ml-val" style="color:#C53030;font-size:1.2rem">XGBoost</div><div class="ml-label">Modele experimental</div></div>', unsafe_allow_html=True)
     with m4:
@@ -618,7 +666,7 @@ with tab5:
     col1,col2 = st.columns(2)
     with col1:
         st.markdown("#### Statut actuel (indicateurs_tension)")
-        st.markdown(f'<div class="section-note">Statut calcule en SQL sur les donnees reelles — {NB_METIERS:,} metiers. Source : table <b>indicateurs_tension</b></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-note">Statut calcule en SQL sur les donnees reelles — {fr(NB_METIERS)} metiers. Source : table <b>indicateurs_tension</b></div>', unsafe_allow_html=True)
         if len(df_itm)>0:
             df_s_act = df_itm["statut"].value_counts().reset_index()
             df_s_act.columns = ["statut","nb"]
@@ -639,20 +687,25 @@ with tab5:
                 st.info("Aucune donnee pour cette combinaison de filtres.")
 
     with col2:
-        st.markdown("#### Modele V2 — predit vs reel")
+        st.markdown("#### Modele V2 — le modele a-t-il raison ?")
         st.markdown(f'<div class="section-note">{NB_ML} metiers (≥ 10 offres). Chaque metier est predit par un modele qui ne l a pas vu (validation croisee 5 plis). En tension = indice &gt; 100 ; predit en tension = probabilite ≥ 50 %.</div>', unsafe_allow_html=True)
         if len(df_pred)>0:
-            conf = pd.crosstab(df_pred["en_tension_reel"].map({True:"En tension (reel)",False:"Pas en tension (reel)"}),
-                               df_pred["en_tension_predit"].map({True:"Predit en tension",False:"Predit pas en tension"}))
-            conf = conf.reset_index().melt(id_vars=conf.index.name or "en_tension_reel", var_name="prediction", value_name="nb")
-            conf.columns = ["reel","prediction","nb"]
-            fig_pred = px.bar(conf, x="reel", y="nb", color="prediction", barmode="group", text="nb",
-                color_discrete_map={"Predit en tension":"#C53030","Predit pas en tension":"#2B6CB0"},
-                labels={"reel":"","nb":"Metiers","prediction":"Prediction XGBoost"})
-            fig_pred.update_traces(textposition="outside")
-            fig_pred.update_layout(height=350, legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                xaxis_title="", yaxis_title="Nb metiers")
-            st.plotly_chart(fig_pred, width="stretch")
+            vp = int(( df_pred["en_tension_reel"] &  df_pred["en_tension_predit"]).sum())
+            fn = int(( df_pred["en_tension_reel"] & ~df_pred["en_tension_predit"]).sum())
+            fp = int((~df_pred["en_tension_reel"] &  df_pred["en_tension_predit"]).sum())
+            vn = int((~df_pred["en_tension_reel"] & ~df_pred["en_tension_predit"]).sum())
+            cases = [[f"<b>{fr(vp)}</b><br>bien reperes", f"<b>{fr(fn)}</b><br>manques"],
+                     [f"<b>{fr(fp)}</b><br>fausses alertes", f"<b>{fr(vn)}</b><br>bien ecartes"]]
+            fig_pred = go.Figure(go.Heatmap(z=[[1, 0], [0, 1]], text=cases, texttemplate="%{text}", textfont=dict(size=17),
+                x=["Le modele dit : EN TENSION", "Le modele dit : PAS en tension"],
+                y=["En realite : EN TENSION", "En realite : PAS en tension"],
+                colorscale=[[0, "#FBD38D"], [1, "#9AE6B4"]], showscale=False, xgap=4, ygap=4, hoverinfo="skip"))
+            fig_pred.update_layout(height=320, margin=dict(l=10, r=10, t=10, b=10),
+                yaxis=dict(autorange="reversed"), plot_bgcolor="white")
+            st.plotly_chart(fig_pred, width="stretch", key="matrice_ml")
+            bien = vp + vn
+            st.caption(f"Vert = bonne reponse du modele ({fr(bien)} metiers sur {fr(len(df_pred))}, soit {fr(100 * bien / len(df_pred))} %). "
+                       f"Orange = erreur. En realite en tension = indice > 100 dans la base ; le modele dit en tension = probabilite >= 50 %.")
 
     st.divider()
 
@@ -662,27 +715,37 @@ with tab5:
         st.markdown("#### Top 10 metiers en tension — Etat actuel")
         st.markdown('<div class="section-note">Source : table <b>indicateurs_tension</b> — indice tension reel</div>', unsafe_allow_html=True)
         if len(df_itm)>0:
-            top_act = df_itm[df_itm["statut"]=="TRES EN TENSION"].sort_values("indice_tension",ascending=False).head(10)
-            fig_t1 = px.bar(top_act, x="indice_tension", y="libelle", orientation="h",
-                color="indice_tension", color_continuous_scale=["#FED7D7","#C53030"],
-                text="indice_tension", labels={"indice_tension":"ITM reel","libelle":""})
-            fig_t1.update_traces(texttemplate="%{text:.0f}", textposition="outside")
-            fig_t1.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
-                xaxis_title="Indice tension reel", yaxis_title="")
-            st.plotly_chart(fig_t1, width="stretch")
+            top_act = df_itm[df_itm["statut"]=="TRES EN TENSION"].sort_values("indice_tension",ascending=False).head(10).copy()
+            top_act["metier"] = top_act["code_rome"] + " · " + top_act["libelle"].apply(nom_court)
+            top_act["etiquette"] = top_act.apply(lambda r: fr(int(r["indice_tension"])) + "  (" + fr(r["nb_offres_total"]) + " offres)", axis=1)
+            fig_t1 = go.Figure(go.Bar(x=top_act["indice_tension"], y=top_act["metier"], orientation="h",
+                marker_color="#C2410C", text=top_act["etiquette"], textposition="outside", cliponaxis=False))
+            fig_t1.update_layout(height=420, showlegend=False, plot_bgcolor="white",
+                xaxis=dict(title="Indice de tension (100 = metier moyen)", range=[0, top_act["indice_tension"].max() * 1.35]),
+                yaxis=dict(title="", autorange="reversed"), margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_t1, width="stretch", key="top10_top_act")
 
     with col4:
-        st.markdown("#### Top 10 probabilites de tension (modele V2)")
-        st.markdown('<div class="section-note">XGBoost sur le profil des offres, sans variable de volume — source : <b>data/predictions_tension.csv</b></div>', unsafe_allow_html=True)
+        st.markdown("#### Ce qui fait pencher le modele (modele V2)")
+        st.markdown('<div class="section-note">Importance des variables pour XGBoost : plus la barre est longue, plus la variable aide le modele a reconnaitre un metier en tension. Aucune variable de volume. Source : <b>data/ml_resultats.json</b></div>', unsafe_allow_html=True)
         if len(df_pred)>0:
-            top_pred = df_pred.sort_values("proba_tension",ascending=False).head(10).assign(proba=lambda d: d["proba_tension"]*100)
-            fig_t2 = px.bar(top_pred, x="proba", y="libelle", orientation="h",
-                color="proba", color_continuous_scale=["#FED7D7","#9B2C2C"],
-                text="proba", labels={"proba":"Probabilite (%)","libelle":""})
-            fig_t2.update_traces(texttemplate="%{text:.0f} %", textposition="outside")
-            fig_t2.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
-                xaxis_title="Probabilite d etre en tension (%)", xaxis_range=[0,110], yaxis_title="")
-            st.plotly_chart(fig_t2, width="stretch")
+            NOMS_VAR = {"longueur_description": "Longueur des annonces", "part_temps_partiel": "Part de temps partiel",
+                        "part_interim": "Part d'interim", "part_cdd": "Part de CDD", "part_cdi": "Part de CDI",
+                        "salaire_affiche_moyen": "Salaire affiche", "part_salaire_absent": "Part sans salaire affiche",
+                        "part_debutant": "Part ouverte aux debutants"}
+            imp = ml.get("v2", {}).get("top_variables", {})
+            if imp:
+                df_imp = pd.DataFrame({"var": list(imp), "poids": [v * 100 for v in imp.values()]}).sort_values("poids", ascending=False).head(8)
+                df_imp["nom"] = df_imp["var"].apply(lambda v: NOMS_VAR.get(v, "Domaine : " + DOMAINES_ROME.get(v[-1], v[-1]) if v.startswith("famille_rome_") else v))
+                fig_t2 = go.Figure(go.Bar(x=df_imp["poids"], y=df_imp["nom"], orientation="h", marker_color="#2B6CB0",
+                    text=[fr(v, 1) + " %" for v in df_imp["poids"]], textposition="outside", cliponaxis=False))
+                fig_t2.update_layout(height=380, plot_bgcolor="white", margin=dict(l=10, r=10, t=10, b=10),
+                    xaxis=dict(title="Importance dans le modele (%)", range=[0, df_imp["poids"].max() * 1.3]),
+                    yaxis=dict(title="", autorange="reversed"))
+                st.plotly_chart(fig_t2, width="stretch", key="importance_ml")
+                st.caption("La longueur des annonces reflete surtout la source (France Travail ou Adzuna) : c'est une limite du modele.")
+            else:
+                st.info("Importance des variables indisponible (lancer notebook/ml_tests.py).")
 
     st.divider()
 
@@ -692,8 +755,8 @@ with tab5:
         st.markdown("#### Offres actives par departement IDF")
         st.markdown('<div class="section-note">Sources combinees Adzuna + France Travail. Contours et centres des departements : fichier de reference <b>data/ref/departements_idf.geojson</b> (collecte C1). Couleur = nb offres.</div>', unsafe_allow_html=True)
         geo = load_geojson()
-        if "departement" in df_all.columns and geo:
-            df_dept = df_all.assign(code_dept=df_all["departement"].map(code_dept_depuis_libelle))
+        if "departement" in df_filtered.columns and geo:
+            df_dept = df_sans_dept.assign(code_dept=df_sans_dept["departement"].map(code_dept_depuis_libelle))
             df_dept = df_dept.dropna(subset=["code_dept"]).groupby("code_dept").size().reset_index(name="nb")
             noms = {f["properties"]["code"]: f["properties"]["nom"] for f in geo["features"]}
             df_dept["departement"] = df_dept["code_dept"].map(noms)
@@ -741,49 +804,47 @@ with tab6:
 
     col1,col2 = st.columns(2)
     with col1:
-        st.markdown("#### Salaire moyen FT vs Adzuna — Top metiers en tension")
+        st.markdown("#### Salaire median FT vs Adzuna — Top metiers en tension")
         if len(df_itm)>0:
             df_sal = df_itm[df_itm["statut"]=="TRES EN TENSION"].copy()
             df_sal = df_sal[(df_sal["salaire_moyen_ft"]>0)|(df_sal["salaire_moyen_adzuna"]>0)].sort_values("indice_tension",ascending=False).head(12)
             fig_sal = go.Figure()
             fig_sal.add_trace(go.Bar(
-                name="France Travail", x=df_sal["libelle"], y=df_sal["salaire_moyen_ft"],
-                marker_color="#C53030", text=df_sal["salaire_moyen_ft"].round(0),
-                texttemplate="%{text:,.0f}", textposition="outside"
+                name="France Travail", x=df_sal["libelle"].apply(nom_court), y=df_sal["salaire_moyen_ft"],
+                marker_color="#C53030", text=df_sal["salaire_moyen_ft"].apply(lambda v: fr(v) if pd.notna(v) else ""), textposition="outside"
             ))
             fig_sal.add_trace(go.Bar(
-                name="Adzuna", x=df_sal["libelle"], y=df_sal["salaire_moyen_adzuna"],
-                marker_color="#63B3ED", text=df_sal["salaire_moyen_adzuna"].round(0),
-                texttemplate="%{text:,.0f}", textposition="outside"
+                name="Adzuna", x=df_sal["libelle"].apply(nom_court), y=df_sal["salaire_moyen_adzuna"],
+                marker_color="#63B3ED", text=df_sal["salaire_moyen_adzuna"].apply(lambda v: fr(v) if pd.notna(v) else ""), textposition="outside"
             ))
             fig_sal.update_layout(
                 barmode="group", height=420, xaxis_tickangle=-35,
-                xaxis_title="", yaxis_title="Salaire moyen annuel (EUR)",
+                xaxis_title="", yaxis_title="Salaire median annuel (EUR)",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 legend_title="Source"
             )
             st.plotly_chart(fig_sal, width="stretch")
 
     with col2:
-        st.markdown("#### Salaire moyen par domaine ROME (Adzuna)")
+        st.markdown("#### Salaire median par domaine ROME (Adzuna)")
         df_sc = df_az_f[df_az_f["salaire_moyen"].notna()]
         if "categorie" in df_sc.columns:
             df_sc = df_sc[~df_sc["categorie"].isin(["Unknown","Non classe"])]
         if len(df_sc)>0 and "categorie" in df_sc.columns:
-            df_sg = df_sc.groupby("categorie")["salaire_moyen"].mean().reset_index().sort_values("salaire_moyen",ascending=True)
+            df_sg = df_sc.groupby("categorie")["salaire_moyen"].median().reset_index().sort_values("salaire_moyen",ascending=True)
             fig2 = px.bar(df_sg, x="salaire_moyen", y="categorie", orientation="h",
                 color="salaire_moyen", color_continuous_scale=["#F0FFF4","#276749"],
-                text="salaire_moyen", labels={"salaire_moyen":"Salaire moyen (EUR/an)","categorie":""})
+                text="salaire_moyen", labels={"salaire_moyen":"Salaire median (EUR/an)","categorie":""})
             fig2.update_traces(texttemplate="%{text:,.0f}", textposition="outside")
             fig2.update_layout(height=500, showlegend=False, coloraxis_showscale=False,
-                xaxis_title="Salaire moyen annuel (EUR)")
+                xaxis_title="Salaire median annuel (EUR)")
             st.plotly_chart(fig2, width="stretch")
 
     st.divider()
     col3,col4 = st.columns(2)
     with col3:
         st.markdown("#### Distribution salaires Adzuna (15k-150k EUR)")
-        df_dist = df_az[(df_az["salaire_moyen"].notna())&(df_az["salaire_moyen"]>15000)&(df_az["salaire_moyen"]<150000)]
+        df_dist = df_az_f[(df_az_f["salaire_moyen"].notna())&(df_az_f["salaire_moyen"]>15000)&(df_az_f["salaire_moyen"]<150000)]
         if len(df_dist)>0:
             fig3 = px.histogram(df_dist, x="salaire_moyen", nbins=30,
                 color_discrete_sequence=["#003189"],
@@ -793,10 +854,10 @@ with tab6:
             st.plotly_chart(fig3, width="stretch")
 
     with col4:
-        st.markdown("#### Salaire moyen par departement (toutes sources)")
-        df_sd = df_all[df_all["salaire_moyen"].notna()]
+        st.markdown("#### Salaire median par departement (toutes sources)")
+        df_sd = df_filtered[df_filtered["salaire_moyen"].notna()]
         if "departement" in df_sd.columns and len(df_sd)>0:
-            df_sdg = df_sd.groupby("departement")["salaire_moyen"].agg(["mean","count"]).reset_index()
+            df_sdg = df_sd.groupby("departement")["salaire_moyen"].agg(["median","count"]).reset_index()
             df_sdg.columns = ["departement","salaire_moyen","nb"]
             df_sdg = df_sdg[df_sdg["nb"]>=5].sort_values("salaire_moyen",ascending=True)
             if len(df_sdg) > 0:
@@ -805,7 +866,7 @@ with tab6:
                     text="salaire_moyen", labels={"salaire_moyen":"Salaire (EUR/an)","departement":""})
                 fig4.update_traces(texttemplate="%{text:,.0f}", textposition="outside")
                 fig4.update_layout(height=380, showlegend=False, coloraxis_showscale=False,
-                    xaxis_title="Salaire moyen annuel (EUR)")
+                    xaxis_title="Salaire median annuel (EUR)")
                 st.plotly_chart(fig4, width="stretch")
             else:
                 st.info("Aucune donnee pour cette combinaison de filtres.")
